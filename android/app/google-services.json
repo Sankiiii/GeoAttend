@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "957382489886",
+    "project_id": "geoattendance-d9591",
+    "storage_bucket": "geoattendance-d9591.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:957382489886:android:53bb83c9f7d9468c177b0f",
+        "android_client_info": {
+          "package_name": "com.nmims.geoattendance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDb7Z_ynRlBMKyGIYZDwgxaNfy0NnovPQk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

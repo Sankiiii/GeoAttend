@@ -1,13 +1,19 @@
 import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geolocator_android/geolocator_android.dart';
 import 'package:geolocator_apple/geolocator_apple.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const GeofenceAttendanceApp());
 }
 
@@ -21,6 +27,17 @@ enum AttendanceStatus {
   sessionExpired,
   manuallyApproved,
   manuallyRejected,
+}
+
+extension AttendanceStatusX on AttendanceStatus {
+  String get firebaseKey => name;
+
+  static AttendanceStatus fromKey(String key) {
+    return AttendanceStatus.values.firstWhere(
+      (e) => e.name == key,
+      orElse: () => AttendanceStatus.approved,
+    );
+  }
 }
 
 class AttendanceSession {
@@ -51,6 +68,33 @@ class AttendanceSession {
     final diff = endTime.difference(DateTime.now());
     return diff.isNegative ? Duration.zero : diff;
   }
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'facultyName': facultyName,
+        'facultyLat': facultyLat,
+        'facultyLng': facultyLng,
+        'radiusMeters': radiusMeters,
+        'startTime': startTime.millisecondsSinceEpoch,
+        'endTime': endTime.millisecondsSinceEpoch,
+        'isActive': isActive,
+      };
+
+  factory AttendanceSession.fromJson(Map<dynamic, dynamic> json) {
+    return AttendanceSession(
+      title: json['title'] as String? ?? 'Session',
+      facultyName: json['facultyName'] as String? ?? 'Faculty',
+      facultyLat: (json['facultyLat'] as num?)?.toDouble() ?? 0.0,
+      facultyLng: (json['facultyLng'] as num?)?.toDouble() ?? 0.0,
+      radiusMeters: (json['radiusMeters'] as num?)?.toDouble() ?? 50.0,
+      startTime: DateTime.fromMillisecondsSinceEpoch(
+          (json['startTime'] as int?) ?? DateTime.now().millisecondsSinceEpoch),
+      endTime: DateTime.fromMillisecondsSinceEpoch(
+          (json['endTime'] as int?) ??
+              DateTime.now().add(const Duration(minutes: 5)).millisecondsSinceEpoch),
+      isActive: json['isActive'] as bool? ?? false,
+    );
+  }
 }
 
 class AttendanceRecord {
@@ -77,6 +121,35 @@ class AttendanceRecord {
     required this.status,
     this.remarks,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'studentName': studentName,
+        'rollNo': rollNo,
+        'studentLat': studentLat,
+        'studentLng': studentLng,
+        'distanceMeters': distanceMeters,
+        'isMocked': isMocked,
+        'timestamp': timestamp.millisecondsSinceEpoch,
+        'status': status.firebaseKey,
+        'remarks': remarks ?? '',
+      };
+
+  factory AttendanceRecord.fromJson(String id, Map<dynamic, dynamic> json) {
+    return AttendanceRecord(
+      id: id,
+      studentName: json['studentName'] as String? ?? 'Unknown',
+      rollNo: json['rollNo'] as String? ?? 'N/A',
+      studentLat: (json['studentLat'] as num?)?.toDouble() ?? 0.0,
+      studentLng: (json['studentLng'] as num?)?.toDouble() ?? 0.0,
+      distanceMeters: (json['distanceMeters'] as num?)?.toDouble() ?? 0.0,
+      isMocked: json['isMocked'] as bool? ?? false,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+          (json['timestamp'] as int?) ?? DateTime.now().millisecondsSinceEpoch),
+      status: AttendanceStatusX.fromKey(json['status'] as String? ?? 'approved'),
+      remarks: json['remarks'] as String?,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -104,140 +177,342 @@ class GeofenceAttendanceApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const MainAttendanceScreen(),
+      home: const RoleSelectorScreen(),
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// ROLE SELECTOR SCREEN
+// ---------------------------------------------------------------------------
+class RoleSelectorScreen extends StatelessWidget {
+  const RoleSelectorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(Icons.school_rounded, size: 80, color: colorScheme.primary),
+              const SizedBox(height: 20),
+              const Text(
+                'Geofenced Attendance',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'Real-Time Demo — Firebase Sync',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 48),
+              const Text(
+                'Who are you on this device?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 20),
+              _RoleCard(
+                icon: Icons.manage_accounts_rounded,
+                title: 'Faculty / Teacher',
+                subtitle: 'Start attendance session\nSet geofence radius\nView student submissions live',
+                color: Colors.blue.shade700,
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MainAttendanceScreen(role: AppRole.faculty),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              _RoleCard(
+                icon: Icons.person_pin_circle_rounded,
+                title: 'Student',
+                subtitle: 'View active session\nMark your attendance\nSee approval status',
+                color: Colors.green.shade700,
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MainAttendanceScreen(role: AppRole.student),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_done, size: 14, color: Colors.green.shade600),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Firebase Realtime Sync Active',
+                    style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _RoleCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, size: 32, color: color),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.bold, color: color)),
+                    const SizedBox(height: 4),
+                    Text(subtitle,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum AppRole { faculty, student }
+
+// ---------------------------------------------------------------------------
+// MAIN ATTENDANCE SCREEN (Firebase-backed)
+// ---------------------------------------------------------------------------
 class MainAttendanceScreen extends StatefulWidget {
-  const MainAttendanceScreen({super.key});
+  final AppRole role;
+  const MainAttendanceScreen({super.key, required this.role});
 
   @override
   State<MainAttendanceScreen> createState() => _MainAttendanceScreenState();
 }
 
 class _MainAttendanceScreenState extends State<MainAttendanceScreen> {
-  // Shared In-Memory Backend State for Demo
+  final _db = FirebaseDatabase.instance;
+  DatabaseReference get _sessionRef => _db.ref('activeSession');
+  DatabaseReference get _recordsRef => _db.ref('attendanceRecords');
+
   AttendanceSession? _activeSession;
   final List<AttendanceRecord> _records = [];
-  Timer? _sessionTimer;
+  Timer? _countdownTimer;
+  StreamSubscription<DatabaseEvent>? _sessionSub;
+  StreamSubscription<DatabaseEvent>? _recordsSub;
 
   @override
   void initState() {
     super.initState();
-    _startPeriodicTimer();
+    _listenToSession();
+    _listenToRecords();
+    _startCountdownTimer();
   }
 
   @override
   void dispose() {
-    _sessionTimer?.cancel();
+    _sessionSub?.cancel();
+    _recordsSub?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
-  void _startPeriodicTimer() {
-    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_activeSession != null && _activeSession!.isActive) {
-        if (_activeSession!.isExpired) {
-          setState(() {
-            _activeSession!.isActive = false;
-          });
-        } else {
-          setState(() {}); // refresh countdown UI
+  void _startCountdownTimer() {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_activeSession != null && mounted) {
+        if (_activeSession!.isExpired && _activeSession!.isActive) {
+          _sessionRef.update({'isActive': false});
         }
+        setState(() {});
       }
     });
   }
 
-  void _createSession({
+  void _listenToSession() {
+    _sessionSub = _sessionRef.onValue.listen((event) {
+      if (!mounted) return;
+      final data = event.snapshot.value;
+      if (data == null) {
+        setState(() => _activeSession = null);
+        return;
+      }
+      try {
+        setState(() => _activeSession = AttendanceSession.fromJson(data as Map<dynamic, dynamic>));
+      } catch (_) {
+        setState(() => _activeSession = null);
+      }
+    });
+  }
+
+  void _listenToRecords() {
+    _recordsSub = _recordsRef.onValue.listen((event) {
+      if (!mounted) return;
+      final data = event.snapshot.value;
+      final List<AttendanceRecord> newRecords = [];
+      if (data != null && data is Map) {
+        data.forEach((key, value) {
+          try {
+            newRecords.add(AttendanceRecord.fromJson(key.toString(), value as Map<dynamic, dynamic>));
+          } catch (_) {}
+        });
+        newRecords.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      }
+      setState(() {
+        _records.clear();
+        _records.addAll(newRecords);
+      });
+    });
+  }
+
+  Future<void> _createSession({
     required String title,
     required String facultyName,
     required double lat,
     required double lng,
     required double radiusMeters,
     required int durationMinutes,
-  }) {
+  }) async {
     final now = DateTime.now();
-    setState(() {
-      _activeSession = AttendanceSession(
-        title: title,
-        facultyName: facultyName,
-        facultyLat: lat,
-        facultyLng: lng,
-        radiusMeters: radiusMeters,
-        startTime: now,
-        endTime: now.add(Duration(minutes: durationMinutes)),
-        isActive: true,
-      );
-      _records.clear(); // Clear previous session records
-    });
+    final session = AttendanceSession(
+      title: title,
+      facultyName: facultyName,
+      facultyLat: lat,
+      facultyLng: lng,
+      radiusMeters: radiusMeters,
+      startTime: now,
+      endTime: now.add(Duration(minutes: durationMinutes)),
+      isActive: true,
+    );
+    await _recordsRef.remove();
+    await _sessionRef.set(session.toJson());
   }
 
-  void _endSession() {
-    setState(() {
-      if (_activeSession != null) {
-        _activeSession!.isActive = false;
-      }
-    });
+  Future<void> _endSession() async {
+    await _sessionRef.update({'isActive': false});
   }
 
-  void _submitAttendance(AttendanceRecord record) {
-    setState(() {
-      _records.insert(0, record);
-    });
+  Future<void> _submitAttendance(AttendanceRecord record) async {
+    await _recordsRef.child(record.id).set(record.toJson());
   }
 
-  void _updateRecordStatus(String recordId, AttendanceStatus newStatus, String remark) {
-    setState(() {
-      final index = _records.indexWhere((r) => r.id == recordId);
-      if (index != -1) {
-        _records[index].status = newStatus;
-        _records[index].remarks = remark;
-      }
+  Future<void> _updateRecordStatus(String recordId, AttendanceStatus newStatus, String remark) async {
+    await _recordsRef.child(recordId).update({
+      'status': newStatus.firebaseKey,
+      'remarks': remark,
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Column(
-            children: [
-              Text(
-                'Geofenced Attendance Demo',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              Text(
-                'Live GPS Distance & Mock Detection',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
-              ),
-            ],
-          ),
-          centerTitle: true,
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.school), text: 'Faculty Panel'),
-              Tab(icon: Icon(Icons.person_pin_circle), text: 'Student Portal'),
-            ],
-          ),
+    if (widget.role == AppRole.faculty) {
+      return Scaffold(
+        appBar: _buildAppBar('Faculty Panel', Icons.manage_accounts_rounded),
+        body: FacultyPanelView(
+          activeSession: _activeSession,
+          records: _records,
+          onCreateSession: _createSession,
+          onEndSession: _endSession,
+          onUpdateStatus: _updateRecordStatus,
         ),
-        body: TabBarView(
-          children: [
-            FacultyPanelView(
-              activeSession: _activeSession,
-              records: _records,
-              onCreateSession: _createSession,
-              onEndSession: _endSession,
-              onUpdateStatus: _updateRecordStatus,
-            ),
-            StudentPortalView(
-              activeSession: _activeSession,
-              onSubmitAttendance: _submitAttendance,
-            ),
-          ],
+      );
+    } else {
+      return Scaffold(
+        appBar: _buildAppBar('Student Portal', Icons.person_pin_circle_rounded),
+        body: StudentPortalView(
+          activeSession: _activeSession,
+          onSubmitAttendance: _submitAttendance,
         ),
+      );
+    }
+  }
+
+  AppBar _buildAppBar(String title, IconData icon) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.swap_horiz),
+        tooltip: 'Switch Role',
+        onPressed: () {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const RoleSelectorScreen()),
+          );
+        },
       ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Column(
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text('Firebase Live Sync', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      centerTitle: true,
     );
   }
 }
@@ -248,7 +523,7 @@ class _MainAttendanceScreenState extends State<MainAttendanceScreen> {
 class FacultyPanelView extends StatefulWidget {
   final AttendanceSession? activeSession;
   final List<AttendanceRecord> records;
-  final Function({
+  final Future<void> Function({
     required String title,
     required String facultyName,
     required double lat,
@@ -256,8 +531,8 @@ class FacultyPanelView extends StatefulWidget {
     required double radiusMeters,
     required int durationMinutes,
   }) onCreateSession;
-  final VoidCallback onEndSession;
-  final Function(String recordId, AttendanceStatus newStatus, String remark) onUpdateStatus;
+  final Future<void> Function() onEndSession;
+  final Future<void> Function(String recordId, AttendanceStatus newStatus, String remark) onUpdateStatus;
 
   const FacultyPanelView({
     super.key,
@@ -275,6 +550,7 @@ class FacultyPanelView extends StatefulWidget {
 class _FacultyPanelViewState extends State<FacultyPanelView> {
   Position? _facultyPosition;
   bool _isLoadingGPS = false;
+  bool _isStartingSession = false;
   String? _gpsError;
 
   final _titleController = TextEditingController(text: 'Computer Networks - Lab 3');
@@ -303,8 +579,7 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
         intervalDuration: const Duration(seconds: 1),
         distanceFilter: 0,
       );
-    } else if (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS) {
+    } else if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
         activityType: ActivityType.fitness,
@@ -312,69 +587,41 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
         distanceFilter: 0,
       );
     }
-    return const LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 0,
-    );
+    return const LocationSettings(accuracy: LocationAccuracy.bestForNavigation, distanceFilter: 0);
   }
 
   Future<void> _fetchFacultyLocation() async {
-    setState(() {
-      _isLoadingGPS = true;
-      _gpsError = null;
-    });
-
+    setState(() { _isLoadingGPS = true; _gpsError = null; });
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(() {
-          _isLoadingGPS = false;
-          _gpsError = 'GPS is turned off on this device.';
-        });
+        setState(() { _isLoadingGPS = false; _gpsError = 'GPS is turned off.'; });
         return;
       }
-
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          setState(() {
-            _isLoadingGPS = false;
-            _gpsError = 'Location permission denied.';
-          });
+          setState(() { _isLoadingGPS = false; _gpsError = 'Location permission denied.'; });
           return;
         }
       }
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: _buildLocationSettings(),
-      );
-
-      if (mounted) {
-        setState(() {
-          _facultyPosition = position;
-          _isLoadingGPS = false;
-        });
-      }
+      final position = await Geolocator.getCurrentPosition(locationSettings: _buildLocationSettings());
+      if (mounted) setState(() { _facultyPosition = position; _isLoadingGPS = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingGPS = false;
-          _gpsError = e.toString();
-        });
-      }
+      if (mounted) setState(() { _isLoadingGPS = false; _gpsError = e.toString(); });
     }
   }
 
-  void _startNewSession() {
+  Future<void> _startNewSession() async {
     if (_facultyPosition == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please capture faculty GPS location first!')),
       );
       return;
     }
-
-    widget.onCreateSession(
+    setState(() => _isStartingSession = true);
+    await widget.onCreateSession(
       title: _titleController.text.trim().isEmpty ? 'Lecture Session' : _titleController.text.trim(),
       facultyName: _facultyNameController.text.trim().isEmpty ? 'Faculty' : _facultyNameController.text.trim(),
       lat: _facultyPosition!.latitude,
@@ -382,19 +629,22 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
       radiusMeters: _radiusMeters,
       durationMinutes: _durationMinutes,
     );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Attendance Session Started! Students can now mark attendance.'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    setState(() => _isStartingSession = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session started! Students can now mark attendance on their devices.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   String _formatDuration(Duration d) {
-    final minutes = d.inMinutes.toString().padLeft(2, '0');
-    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   @override
@@ -409,16 +659,13 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Session Status Banner
           if (isSessionRunning) ...[
             _buildActiveSessionBanner(session, colorScheme),
             const SizedBox(height: 16),
           ] else if (session != null && session.isExpired) ...[
-            _buildExpiredBanner(session, colorScheme),
+            _buildExpiredBanner(session),
             const SizedBox(height: 16),
           ],
-
-          // Start Session Form Card
           Card(
             elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -456,8 +703,6 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Faculty GPS Coordinates Display
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -471,20 +716,12 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Classroom Center (Faculty GPS):',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
+                            const Text('Classroom Center (Faculty GPS):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                             IconButton(
                               icon: _isLoadingGPS
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
+                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                                   : const Icon(Icons.refresh, size: 20),
                               onPressed: _isLoadingGPS ? null : _fetchFacultyLocation,
-                              tooltip: 'Refresh Location',
                             ),
                           ],
                         ),
@@ -493,93 +730,47 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
                             'Lat: ${_facultyPosition!.latitude.toStringAsFixed(7)}, Lng: ${_facultyPosition!.longitude.toStringAsFixed(7)}',
                             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                           ),
-                          Text(
-                            'Hardware GPS Accuracy: ±${_facultyPosition!.accuracy.toStringAsFixed(1)}m',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                          ),
+                          Text('Accuracy: ±${_facultyPosition!.accuracy.toStringAsFixed(1)}m', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                         ] else if (_gpsError != null) ...[
-                          Text(
-                            'Error: $_gpsError',
-                            style: const TextStyle(color: Colors.red, fontSize: 13),
-                          ),
+                          Text('GPS Error: $_gpsError', style: const TextStyle(color: Colors.red)),
                         ] else ...[
-                          const Text('Fetching current GPS coordinates...', style: TextStyle(fontSize: 13)),
+                          const Text('Acquiring GPS…'),
                         ],
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Radius Slider
-                  Text(
-                    'Allowed Geofence Radius: ${_radiusMeters.toInt()} meters',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  Slider(
-                    value: _radiusMeters,
-                    min: 10,
-                    max: 150,
-                    divisions: 14,
-                    label: '${_radiusMeters.toInt()}m',
-                    onChanged: (val) => setState(() => _radiusMeters = val),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('10m (Small Room)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      Text('50m (Hall)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      Text('150m (Campus)', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Duration Selector
-                  Text(
-                    'Session Duration: $_durationMinutes Minutes',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [1, 2, 5, 10, 15].map((mins) {
-                      final selected = _durationMinutes == mins;
-                      return ChoiceChip(
-                        label: Text('$mins min'),
-                        selected: selected,
-                        onSelected: (val) {
-                          if (val) setState(() => _durationMinutes = mins);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Action Buttons
+                  Text('Geofence Radius: ${_radiusMeters.toInt()} meters', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Slider(value: _radiusMeters, min: 10, max: 150, divisions: 14, label: '${_radiusMeters.toInt()}m', onChanged: (val) => setState(() => _radiusMeters = val)),
+                  Text('Session Duration: $_durationMinutes minutes', style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Slider(value: _durationMinutes.toDouble(), min: 1, max: 15, divisions: 14, label: '$_durationMinutes min', onChanged: (val) => setState(() => _durationMinutes = val.toInt())),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _facultyPosition == null ? null : _startNewSession,
-                      icon: const Icon(Icons.play_circle_fill),
-                      label: Text(isSessionRunning ? 'Restart Session with New Settings' : 'Start Attendance Session'),
+                      onPressed: (_isStartingSession || _isLoadingGPS) ? null : _startNewSession,
+                      icon: _isStartingSession
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.play_arrow_rounded),
+                      label: Text(_isStartingSession ? 'Saving to Firebase...' : 'Start Attendance Session', style: const TextStyle(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        backgroundColor: Colors.green.shade700,
+                        backgroundColor: colorScheme.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
                   if (isSessionRunning) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
-                        onPressed: widget.onEndSession,
-                        icon: const Icon(Icons.stop_circle, color: Colors.red),
-                        label: const Text('End Current Session Now', style: TextStyle(color: Colors.red)),
+                        onPressed: () async => await widget.onEndSession(),
+                        icon: const Icon(Icons.stop_circle_outlined, color: Colors.red),
+                        label: const Text('End Session Now', style: TextStyle(color: Colors.red)),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.red),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
@@ -590,47 +781,37 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // Live Submissions & Review Queue Header
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Live Submissions (${widget.records.length})',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              if (widget.records.isNotEmpty)
-                Text(
-                  'Approved: ${widget.records.where((r) => r.status == AttendanceStatus.approved || r.status == AttendanceStatus.manuallyApproved).length}',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700),
+              Icon(Icons.list_alt_rounded, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text('Attendance Submissions (${widget.records.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 6),
+              if (isSessionRunning)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)),
+                  child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-
-          // Submissions List
+          const SizedBox(height: 8),
           if (widget.records.isEmpty)
             Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-              ),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
               child: const Column(
                 children: [
-                  Icon(Icons.inbox, size: 48, color: Colors.grey),
+                  Icon(Icons.inbox_rounded, size: 40, color: Colors.grey),
                   SizedBox(height: 8),
-                  Text('No attendance submissions yet', style: TextStyle(color: Colors.grey)),
-                  SizedBox(height: 4),
-                  Text(
-                    'Switch to "Student Portal" tab to submit attendance.',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
+                  Text('No submissions yet.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  Text('Student submissions will appear here in real-time.', style: TextStyle(color: Colors.grey, fontSize: 12), textAlign: TextAlign.center),
                 ],
               ),
             )
           else
             ...widget.records.map((record) => _buildRecordCard(record, colorScheme)),
+          const SizedBox(height: 32),
         ],
       ),
     );
@@ -638,80 +819,58 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
 
   Widget _buildActiveSessionBanner(AttendanceSession session, ColorScheme colorScheme) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.shade700, width: 1.5),
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.green, width: 1.5),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
+          const Icon(Icons.radio_button_on, color: Colors.green, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(session.title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                Text('Radius: ${session.radiusMeters.toInt()}m | Faculty: ${session.facultyName}', style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+          Column(
             children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.green,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'ACTIVE SESSION LIVE',
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade700,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.timer, size: 14, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      _formatDuration(session.remainingTime),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                  ],
-                ),
+              const Text('Remaining', style: TextStyle(fontSize: 10)),
+              Text(
+                _formatDuration(session.remainingTime),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green, fontFeatures: [FontFeature.tabularFigures()]),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            session.title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            'Faculty: ${session.facultyName} | Radius: ${session.radiusMeters.toInt()}m',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildExpiredBanner(AttendanceSession session, ColorScheme colorScheme) {
+  Widget _buildExpiredBanner(AttendanceSession session) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade300),
+        color: Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey),
       ),
       child: Row(
         children: [
-          const Icon(Icons.timer_off, color: Colors.red),
+          const Icon(Icons.history_toggle_off, color: Colors.grey),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              'Session for "${session.title}" has ended.',
-              style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${session.title} — ENDED', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                Text('${widget.records.length} total submissions recorded.', style: const TextStyle(fontSize: 12)),
+              ],
             ),
           ),
         ],
@@ -721,51 +880,37 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
 
   Widget _buildRecordCard(AttendanceRecord record, ColorScheme colorScheme) {
     Color statusColor;
-    String statusText;
     IconData statusIcon;
+    String statusLabel;
 
     switch (record.status) {
       case AttendanceStatus.approved:
-        statusColor = Colors.green.shade700;
-        statusText = 'Verified & Approved';
-        statusIcon = Icons.check_circle;
-        break;
       case AttendanceStatus.manuallyApproved:
-        statusColor = Colors.teal.shade700;
-        statusText = 'Manually Approved';
-        statusIcon = Icons.check_circle_outline;
+        statusColor = Colors.green;
+        statusIcon = Icons.check_circle;
+        statusLabel = record.status == AttendanceStatus.manuallyApproved ? 'Manually Approved' : 'Approved';
         break;
       case AttendanceStatus.rejectedOutsideRadius:
-        statusColor = Colors.red.shade700;
-        statusText = 'Rejected (Outside Geofence)';
+      case AttendanceStatus.manuallyRejected:
+      case AttendanceStatus.sessionExpired:
+        statusColor = Colors.red;
         statusIcon = Icons.cancel;
+        statusLabel = record.status == AttendanceStatus.sessionExpired ? 'Expired' : record.status == AttendanceStatus.manuallyRejected ? 'Manually Rejected' : 'Outside Radius';
         break;
       case AttendanceStatus.flaggedMockLocation:
-        statusColor = Colors.orange.shade800;
-        statusText = 'FLAGGED: Mock/Fake GPS';
-        statusIcon = Icons.warning_amber_rounded;
-        break;
-      case AttendanceStatus.sessionExpired:
-        statusColor = Colors.grey.shade700;
-        statusText = 'Rejected (Late Submission)';
-        statusIcon = Icons.timer_off;
-        break;
-      case AttendanceStatus.manuallyRejected:
-        statusColor = Colors.red.shade900;
-        statusText = 'Manually Rejected';
-        statusIcon = Icons.block;
+        statusColor = Colors.orange;
+        statusIcon = Icons.warning_rounded;
+        statusLabel = 'Mock GPS Flagged';
         break;
     }
 
-    final time = record.timestamp.toLocal();
-    final timeStr =
-        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+    final canReview = record.status == AttendanceStatus.flaggedMockLocation || record.status == AttendanceStatus.rejectedOutsideRadius;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: statusColor.withOpacity(0.5)),
+        side: BorderSide(color: statusColor.withOpacity(0.4), width: 1.2),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -773,78 +918,63 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  record.studentName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
+                CircleAvatar(
+                  backgroundColor: colorScheme.primary.withOpacity(0.12),
+                  child: Text(
+                    record.studentName.isNotEmpty ? record.studentName[0].toUpperCase() : '?',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary),
                   ),
-                  child: Row(
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(statusIcon, color: statusColor, size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        statusText,
-                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
-                      ),
+                      Text(record.studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      Text('Roll No: ${record.rollNo}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                     ],
                   ),
                 ),
+                _buildBadge(statusLabel, statusIcon, statusColor),
               ],
             ),
-            const SizedBox(height: 4),
-            Text('Roll No: ${record.rollNo} | Submitted at: $timeStr', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
-            Row(
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
               children: [
-                _buildInfoBadge(Icons.straighten, '${record.distanceMeters.toStringAsFixed(1)}m away'),
-                const SizedBox(width: 8),
-                _buildInfoBadge(
-                  record.isMocked ? Icons.warning : Icons.verified,
-                  record.isMocked ? 'Mock GPS: YES' : 'Mock GPS: NO',
-                  isWarning: record.isMocked,
-                ),
+                _infoChip(Icons.social_distance, '${record.distanceMeters.toStringAsFixed(1)}m away', record.distanceMeters <= 50 ? Colors.green : Colors.red),
+                _infoChip(record.isMocked ? Icons.location_off : Icons.location_on, record.isMocked ? 'Mock GPS' : 'Real GPS', record.isMocked ? Colors.orange : Colors.green),
+                _infoChip(Icons.access_time, '${record.timestamp.hour.toString().padLeft(2,'0')}:${record.timestamp.minute.toString().padLeft(2,'0')}:${record.timestamp.second.toString().padLeft(2,'0')}', Colors.grey),
               ],
             ),
-            if (record.remarks != null) ...[
+            if (record.remarks != null && record.remarks!.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text('Remarks: ${record.remarks}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+              Text(record.remarks!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
             ],
-            // Faculty manual review actions for suspicious or rejected submissions
-            if (record.status == AttendanceStatus.flaggedMockLocation ||
-                record.status == AttendanceStatus.rejectedOutsideRadius) ...[
-              const Divider(height: 16),
+            if (canReview) ...[
+              const SizedBox(height: 10),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton.icon(
-                    onPressed: () {
-                      widget.onUpdateStatus(
-                        record.id,
-                        AttendanceStatus.manuallyApproved,
-                        'Faculty approved override after review',
-                      );
-                    },
-                    icon: const Icon(Icons.check, size: 16, color: Colors.teal),
-                    label: const Text('Allow / Approve', style: TextStyle(color: Colors.teal)),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => widget.onUpdateStatus(record.id, AttendanceStatus.manuallyApproved, 'Manually approved by faculty after review'),
+                      icon: const Icon(Icons.check, size: 16, color: Colors.green),
+                      label: const Text('Approve', style: TextStyle(color: Colors.green, fontSize: 12)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green), padding: const EdgeInsets.symmetric(vertical: 6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: () {
-                      widget.onUpdateStatus(
-                        record.id,
-                        AttendanceStatus.manuallyRejected,
-                        'Faculty confirmed rejection',
-                      );
-                    },
-                    icon: const Icon(Icons.close, size: 16, color: Colors.red),
-                    label: const Text('Confirm Reject', style: TextStyle(color: Colors.red)),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => widget.onUpdateStatus(record.id, AttendanceStatus.manuallyRejected, 'Manually rejected by faculty'),
+                      icon: const Icon(Icons.close, size: 16, color: Colors.red),
+                      label: const Text('Reject', style: TextStyle(color: Colors.red, fontSize: 12)),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), padding: const EdgeInsets.symmetric(vertical: 6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                    ),
                   ),
                 ],
               ),
@@ -855,14 +985,21 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
     );
   }
 
-  Widget _buildInfoBadge(IconData icon, String label, {bool isWarning = false}) {
-    final color = isWarning ? Colors.red : Colors.grey.shade800;
+  Widget _infoChip(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  Widget _buildBadge(String label, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isWarning ? Colors.red.withOpacity(0.1) : Colors.grey.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.4))),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -880,7 +1017,7 @@ class _FacultyPanelViewState extends State<FacultyPanelView> {
 // ---------------------------------------------------------------------------
 class StudentPortalView extends StatefulWidget {
   final AttendanceSession? activeSession;
-  final Function(AttendanceRecord) onSubmitAttendance;
+  final Future<void> Function(AttendanceRecord) onSubmitAttendance;
 
   const StudentPortalView({
     super.key,
@@ -893,17 +1030,18 @@ class StudentPortalView extends StatefulWidget {
 }
 
 class _StudentPortalViewState extends State<StudentPortalView> {
-  final _nameController = TextEditingController(text: 'Rahul Verma');
-  final _rollNoController = TextEditingController(text: 'CS-2024-042');
+  final _nameController = TextEditingController();
+  final _rollNoController = TextEditingController();
 
   Position? _studentPosition;
   StreamSubscription<Position>? _positionStream;
   bool _isLoadingGPS = false;
+  bool _isSubmitting = false;
   String? _gpsError;
+  bool _hasSubmitted = false;
 
-  // Simulation settings for easy demo testing
   bool _simulateMockGps = false;
-  double _simulateOffsetMeters = 0.0; // 0 = exact real GPS, 150 = outside radius
+  double _simulateOffsetMeters = 0.0;
 
   @override
   void initState() {
@@ -921,141 +1059,74 @@ class _StudentPortalViewState extends State<StudentPortalView> {
 
   LocationSettings _buildLocationSettings() {
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return AndroidSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        forceLocationManager: true,
-        intervalDuration: const Duration(seconds: 1),
-        distanceFilter: 0,
-      );
-    } else if (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS) {
-      return AppleSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        activityType: ActivityType.fitness,
-        pauseLocationUpdatesAutomatically: false,
-        distanceFilter: 0,
-      );
+      return AndroidSettings(accuracy: LocationAccuracy.bestForNavigation, forceLocationManager: true, intervalDuration: const Duration(seconds: 1), distanceFilter: 0);
+    } else if (defaultTargetPlatform == TargetPlatform.iOS || defaultTargetPlatform == TargetPlatform.macOS) {
+      return AppleSettings(accuracy: LocationAccuracy.bestForNavigation, activityType: ActivityType.fitness, pauseLocationUpdatesAutomatically: false, distanceFilter: 0);
     }
-    return const LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 0,
-    );
+    return const LocationSettings(accuracy: LocationAccuracy.bestForNavigation, distanceFilter: 0);
   }
 
   Future<void> _startLiveStudentGPS() async {
-    setState(() {
-      _isLoadingGPS = true;
-      _gpsError = null;
-    });
-
+    setState(() { _isLoadingGPS = true; _gpsError = null; });
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setState(() {
-          _isLoadingGPS = false;
-          _gpsError = 'GPS is disabled on this device.';
-        });
+        setState(() { _isLoadingGPS = false; _gpsError = 'GPS is disabled.'; });
         return;
       }
-
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          setState(() {
-            _isLoadingGPS = false;
-            _gpsError = 'Location permission denied.';
-          });
+          setState(() { _isLoadingGPS = false; _gpsError = 'Location permission denied.'; });
           return;
         }
       }
-
-      _positionStream = Geolocator.getPositionStream(
-        locationSettings: _buildLocationSettings(),
-      ).listen(
+      _positionStream = Geolocator.getPositionStream(locationSettings: _buildLocationSettings()).listen(
         (Position pos) {
-          if (mounted) {
-            setState(() {
-              _studentPosition = pos;
-              _isLoadingGPS = false;
-              _gpsError = null;
-            });
-          }
+          if (mounted) setState(() { _studentPosition = pos; _isLoadingGPS = false; _gpsError = null; });
         },
         onError: (err) {
-          if (mounted) {
-            setState(() {
-              _isLoadingGPS = false;
-              _gpsError = err.toString();
-            });
-          }
+          if (mounted) setState(() { _isLoadingGPS = false; _gpsError = err.toString(); });
         },
       );
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingGPS = false;
-          _gpsError = e.toString();
-        });
-      }
+      if (mounted) setState(() { _isLoadingGPS = false; _gpsError = e.toString(); });
     }
   }
 
   double _calculateDistance() {
     if (_studentPosition == null || widget.activeSession == null) return 0.0;
-
     final session = widget.activeSession!;
-    final actualDistance = Geolocator.distanceBetween(
-      session.facultyLat,
-      session.facultyLng,
-      _studentPosition!.latitude,
-      _studentPosition!.longitude,
-    );
-
-    // Apply simulation offset if set in demo
-    return actualDistance + _simulateOffsetMeters;
+    return Geolocator.distanceBetween(session.facultyLat, session.facultyLng, _studentPosition!.latitude, _studentPosition!.longitude) + _simulateOffsetMeters;
   }
 
-  void _markAttendance() {
+  Future<void> _markAttendance() async {
+    final name = _nameController.text.trim();
+    final rollNo = _rollNoController.text.trim();
+
+    if (name.isEmpty || rollNo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your Full Name and Roll Number first!'), backgroundColor: Colors.orange));
+      return;
+    }
+
     final session = widget.activeSession;
     if (session == null) {
-      _showResultDialog(
-        title: 'No Active Session',
-        message: 'There is no active attendance session right now. Please ask your faculty to start the session.',
-        isSuccess: false,
-      );
+      _showResultDialog(title: 'No Active Session', message: 'There is no active attendance session.\nAsk your faculty to start the session from their device.', isSuccess: false);
       return;
     }
 
     if (session.isExpired) {
-      final record = AttendanceRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        studentName: _nameController.text.trim(),
-        rollNo: _rollNoController.text.trim(),
-        studentLat: _studentPosition?.latitude ?? 0.0,
-        studentLng: _studentPosition?.longitude ?? 0.0,
-        distanceMeters: _calculateDistance(),
-        isMocked: _simulateMockGps || (_studentPosition?.isMocked ?? false),
-        timestamp: DateTime.now(),
-        status: AttendanceStatus.sessionExpired,
-        remarks: 'Session expired before submission',
-      );
-      widget.onSubmitAttendance(record);
-
-      _showResultDialog(
-        title: 'Session Expired',
-        message: 'The attendance session has ended. Late submissions are rejected.',
-        isSuccess: false,
-      );
+      _showResultDialog(title: 'Session Expired', message: 'The attendance session has ended.', isSuccess: false);
       return;
     }
 
     if (_studentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Acquiring your satellite GPS location, please wait...')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Acquiring GPS location, please wait...')));
       return;
     }
+
+    setState(() => _isSubmitting = true);
 
     final isMock = _simulateMockGps || _studentPosition!.isMocked;
     final distance = _calculateDistance();
@@ -1077,8 +1148,8 @@ class _StudentPortalViewState extends State<StudentPortalView> {
 
     final record = AttendanceRecord(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      studentName: _nameController.text.trim().isEmpty ? 'Student' : _nameController.text.trim(),
-      rollNo: _rollNoController.text.trim().isEmpty ? 'N/A' : _rollNoController.text.trim(),
+      studentName: name,
+      rollNo: rollNo,
       studentLat: _studentPosition!.latitude,
       studentLng: _studentPosition!.longitude,
       distanceMeters: distance,
@@ -1088,29 +1159,17 @@ class _StudentPortalViewState extends State<StudentPortalView> {
       remarks: remarks,
     );
 
-    widget.onSubmitAttendance(record);
+    await widget.onSubmitAttendance(record);
+    setState(() { _isSubmitting = false; _hasSubmitted = true; });
 
-    if (status == AttendanceStatus.approved) {
-      _showResultDialog(
-        title: 'Attendance Marked Successfully!',
-        message:
-            'You are verified inside the classroom.\n\n• Distance: ${distance.toStringAsFixed(1)}m\n• Allowed: ${session.radiusMeters.toInt()}m\n• Mock GPS: Clean',
-        isSuccess: true,
-      );
-    } else if (status == AttendanceStatus.flaggedMockLocation) {
-      _showResultDialog(
-        title: 'Suspicious Location Flagged!',
-        message:
-            'Mock or Fake GPS detected on your device. Your submission has been flagged and sent to faculty for manual review.',
-        isSuccess: false,
-      );
-    } else {
-      _showResultDialog(
-        title: 'Outside Classroom Boundary',
-        message:
-            'You are ${distance.toStringAsFixed(1)} meters away from the classroom center. Maximum allowed is ${session.radiusMeters.toInt()} meters.\n\nAttendance rejected.',
-        isSuccess: false,
-      );
+    if (mounted) {
+      if (status == AttendanceStatus.approved) {
+        _showResultDialog(title: 'Attendance Marked! ✅', message: 'You are verified inside the classroom.\n\n• Distance: ${distance.toStringAsFixed(1)}m\n• Allowed: ${session.radiusMeters.toInt()}m\n• Mock GPS: Clean\n\nYour faculty can see this submission instantly on their device.', isSuccess: true);
+      } else if (status == AttendanceStatus.flaggedMockLocation) {
+        _showResultDialog(title: 'Suspicious Location Flagged ⚠️', message: 'Mock or Fake GPS detected. Submission flagged and sent to faculty for manual review.', isSuccess: false);
+      } else {
+        _showResultDialog(title: 'Outside Classroom Boundary ❌', message: 'You are ${distance.toStringAsFixed(1)}m from classroom.\nMaximum allowed: ${session.radiusMeters.toInt()}m.\n\nAttendance rejected.', isSuccess: false);
+      }
     }
   }
 
@@ -1118,27 +1177,23 @@ class _StudentPortalViewState extends State<StudentPortalView> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: Icon(
-          isSuccess ? Icons.check_circle : Icons.error,
-          color: isSuccess ? Colors.green : Colors.red,
-          size: 48,
-        ),
+        icon: Icon(isSuccess ? Icons.check_circle : Icons.error, color: isSuccess ? Colors.green : Colors.red, size: 48),
         title: Text(title, textAlign: TextAlign.center),
         content: Text(message, textAlign: TextAlign.center),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
       ),
     );
   }
 
+  String _formatRemaining(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s remaining';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
     final session = widget.activeSession;
     final distance = _calculateDistance();
     final isWithinRadius = session != null && distance <= session.radiusMeters;
@@ -1149,7 +1204,54 @@ class _StudentPortalViewState extends State<StudentPortalView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Student Profile Inputs
+          // Live Session Card (synced from Firebase)
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: (session != null && session.isActive && !session.isExpired) ? Colors.green.withOpacity(0.5) : Colors.grey.withOpacity(0.3),
+                width: 1.5,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.cloud_sync_rounded, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      const Text('Live Session from Faculty Device', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  if (session == null) ...[
+                    const Row(
+                      children: [
+                        SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                        SizedBox(width: 10),
+                        Expanded(child: Text('Waiting for faculty to start a session on their device…', style: TextStyle(color: Colors.grey))),
+                      ],
+                    ),
+                  ] else ...[
+                    _sessionInfoRow(Icons.class_, 'Session', session.title),
+                    _sessionInfoRow(Icons.person, 'Faculty', session.facultyName),
+                    _sessionInfoRow(Icons.radar, 'Geofence Radius', '${session.radiusMeters.toInt()} meters'),
+                    _sessionInfoRow(
+                      session.isExpired ? Icons.lock_clock : Icons.timer,
+                      'Status',
+                      session.isExpired ? 'ENDED' : session.isActive ? 'ACTIVE — ${_formatRemaining(session.remainingTime)}' : 'INACTIVE',
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Student Identity
           Card(
             elevation: 1,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1158,27 +1260,16 @@ class _StudentPortalViewState extends State<StudentPortalView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Student Information',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Your Identity', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Full Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _rollNoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Roll Number / Student ID',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.badge),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Roll Number / Student ID *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge)),
                   ),
                 ],
               ),
@@ -1186,7 +1277,7 @@ class _StudentPortalViewState extends State<StudentPortalView> {
           ),
           const SizedBox(height: 16),
 
-          // Live Geofence Radar / Status Card
+          // Live Geofence Card
           Card(
             elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1199,160 +1290,103 @@ class _StudentPortalViewState extends State<StudentPortalView> {
                     children: [
                       Icon(Icons.radar, color: colorScheme.primary),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Live Geofence Distance Meter',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                      const Text('Live Geofence Distance', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const Divider(height: 24),
-                  if (session == null) ...[
+                  if (session == null || !session.isActive || session.isExpired) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber.shade700),
-                      ),
+                      decoration: BoxDecoration(color: Colors.amber.withOpacity(0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.shade700)),
                       child: const Row(
                         children: [
                           Icon(Icons.info, color: Colors.amber),
                           SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'No active session found. Faculty needs to start session from the Faculty Panel.',
-                              style: TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                          ),
+                          Expanded(child: Text('No active session yet.\nFaculty must start a session from their phone.')),
                         ],
                       ),
                     ),
                   ] else ...[
-                    // Active Target Details
-                    Text(
-                      'Target Session: ${session.title}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    Text('Faculty: ${session.facultyName} | Geofence Radius: ${session.radiusMeters.toInt()}m'),
-                    const SizedBox(height: 16),
-
-                    // Distance Gauge
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isWithinRadius
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.red.withOpacity(0.1),
+                        color: isWithinRadius ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isWithinRadius ? Colors.green : Colors.red,
-                          width: 1.5,
-                        ),
+                        border: Border.all(color: isWithinRadius ? Colors.green : Colors.red, width: 1.5),
                       ),
                       child: Column(
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                isWithinRadius ? Icons.check_circle : Icons.not_listed_location,
-                                color: isWithinRadius ? Colors.green : Colors.red,
-                                size: 28,
-                              ),
+                              Icon(isWithinRadius ? Icons.check_circle : Icons.not_listed_location, color: isWithinRadius ? Colors.green : Colors.red, size: 28),
                               const SizedBox(width: 10),
-                              Text(
-                                '${distance.toStringAsFixed(1)} Meters',
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                  color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800,
-                                ),
-                              ),
+                              Text('${distance.toStringAsFixed(1)} m', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800)),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            isWithinRadius
-                                ? '✓ You are INSIDE classroom radius (Allowed: ${session.radiusMeters.toInt()}m)'
-                                : '✗ You are OUTSIDE classroom radius (Allowed: ${session.radiusMeters.toInt()}m)',
+                            isWithinRadius ? '✓ INSIDE classroom radius (Allowed: ${session.radiusMeters.toInt()}m)' : '✗ OUTSIDE classroom radius (Allowed: ${session.radiusMeters.toInt()}m)',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800,
-                            ),
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // Mock GPS Status Flag
                     Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: isMock ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      decoration: BoxDecoration(color: isMock ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
                       child: Row(
                         children: [
-                          Icon(
-                            isMock ? Icons.warning_rounded : Icons.shield_outlined,
-                            size: 20,
-                            color: isMock ? Colors.red : Colors.green.shade700,
-                          ),
+                          Icon(isMock ? Icons.warning_rounded : Icons.shield_outlined, size: 20, color: isMock ? Colors.red : Colors.green.shade700),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              isMock
-                                  ? 'Fake / Mock GPS location detected!'
-                                  : 'Satellite Integrity: Hardware GPS Verified (No Mocking)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: isMock ? Colors.red.shade800 : Colors.green.shade800,
-                              ),
+                              isMock ? 'Fake / Mock GPS location detected!' : 'Hardware GPS Verified — No Mocking',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isMock ? Colors.red.shade800 : Colors.green.shade800),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                  const SizedBox(height: 16),
-
-                  // Student GPS Details
-                  if (_studentPosition != null) ...[
-                    Text(
-                      'Your GPS: ${_studentPosition!.latitude.toStringAsFixed(6)}, ${_studentPosition!.longitude.toStringAsFixed(6)} (±${_studentPosition!.accuracy.toStringAsFixed(1)}m)',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                    ),
-                  ] else if (_isLoadingGPS) ...[
-                    const Row(
-                      children: [
-                        SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
-                        SizedBox(width: 8),
-                        Text('Reading satellite GPS coordinates...', style: TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                  ] else if (_gpsError != null) ...[
+                  const SizedBox(height: 12),
+                  if (_studentPosition != null)
+                    Text('Your GPS: ${_studentPosition!.latitude.toStringAsFixed(6)}, ${_studentPosition!.longitude.toStringAsFixed(6)} (±${_studentPosition!.accuracy.toStringAsFixed(1)}m)', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))
+                  else if (_isLoadingGPS)
+                    const Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('Reading satellite GPS…', style: TextStyle(fontSize: 12))])
+                  else if (_gpsError != null)
                     Text('GPS Error: $_gpsError', style: const TextStyle(color: Colors.red, fontSize: 12)),
-                  ],
                 ],
               ),
             ),
           ),
           const SizedBox(height: 20),
 
-          // Action Button: Mark Attendance
+          if (_hasSubmitted) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.blue.shade300)),
+              child: const Row(
+                children: [
+                  Icon(Icons.cloud_upload, color: Colors.blue),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Attendance submitted to Firebase.\nCheck the Faculty Panel on the other device to see your record instantly.', style: TextStyle(fontSize: 13, color: Colors.blue))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _studentPosition == null ? null : _markAttendance,
-              icon: const Icon(Icons.touch_app, size: 24),
-              label: const Text(
-                'Mark My Attendance',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              onPressed: (_studentPosition == null || _isSubmitting) ? null : _markAttendance,
+              icon: _isSubmitting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.touch_app, size: 24),
+              label: Text(_isSubmitting ? 'Saving to Firebase...' : 'Mark My Attendance', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: isWithinRadius ? Colors.green.shade700 : colorScheme.primary,
@@ -1363,16 +1397,11 @@ class _StudentPortalViewState extends State<StudentPortalView> {
           ),
           const SizedBox(height: 24),
 
-          // -------------------------------------------------------------
-          // DEMO & SIMULATION TOOLS (Allows quick testing on single device)
-          // -------------------------------------------------------------
+          // Demo Tools
           Card(
             elevation: 0,
             color: colorScheme.primary.withOpacity(0.05),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: colorScheme.primary.withOpacity(0.2)),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: colorScheme.primary.withOpacity(0.2))),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -1382,44 +1411,26 @@ class _StudentPortalViewState extends State<StudentPortalView> {
                     children: [
                       Icon(Icons.science, color: colorScheme.primary, size: 20),
                       const SizedBox(width: 6),
-                      Text(
-                        'Demo Testing Simulator (Single Device Test)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colorScheme.primary),
-                      ),
+                      Text('Demo Testing Tools', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colorScheme.primary)),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Since you are testing on one phone, you can simulate being inside/outside or spoofing GPS:',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-                  ),
+                  const SizedBox(height: 6),
+                  Text('Simulate distance offset or mock GPS for demo:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 6,
                     children: [
-                      ChoiceChip(
-                        label: const Text('Real GPS (0m offset)'),
-                        selected: _simulateOffsetMeters == 0.0,
-                        onSelected: (val) => setState(() => _simulateOffsetMeters = 0.0),
-                      ),
-                      ChoiceChip(
-                        label: const Text('Simulate 15m away (Inside)'),
-                        selected: _simulateOffsetMeters == 15.0,
-                        onSelected: (val) => setState(() => _simulateOffsetMeters = 15.0),
-                      ),
-                      ChoiceChip(
-                        label: const Text('Simulate 120m away (Outside)'),
-                        selected: _simulateOffsetMeters == 120.0,
-                        onSelected: (val) => setState(() => _simulateOffsetMeters = 120.0),
-                      ),
+                      ChoiceChip(label: const Text('0m (Real)'), selected: _simulateOffsetMeters == 0.0, onSelected: (val) => setState(() => _simulateOffsetMeters = 0.0)),
+                      ChoiceChip(label: const Text('+15m (Inside)'), selected: _simulateOffsetMeters == 15.0, onSelected: (val) => setState(() => _simulateOffsetMeters = 15.0)),
+                      ChoiceChip(label: const Text('+120m (Outside)'), selected: _simulateOffsetMeters == 120.0, onSelected: (val) => setState(() => _simulateOffsetMeters = 120.0)),
                     ],
                   ),
                   const SizedBox(height: 6),
                   SwitchListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Simulate Mock/Fake GPS App', style: TextStyle(fontSize: 12)),
+                    title: const Text('Simulate Mock/Fake GPS', style: TextStyle(fontSize: 12)),
                     value: _simulateMockGps,
                     onChanged: (val) => setState(() => _simulateMockGps = val),
                   ),
@@ -1427,6 +1438,21 @@ class _StudentPortalViewState extends State<StudentPortalView> {
               ),
             ),
           ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _sessionInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
         ],
       ),
     );
