@@ -1279,6 +1279,9 @@ class _FacultyPanelState extends State<FacultyPanel> {
   }
 
   Widget _recordCard(AttendanceRecord r, ColorScheme cs) {
+    final sessionRadius = widget.session?.radiusMeters ?? 50.0;
+    final isWithinRadius = r.distanceMeters <= sessionRadius;
+
     // Color/icon/label based on status
     Color sc;
     IconData si;
@@ -1288,22 +1291,22 @@ class _FacultyPanelState extends State<FacultyPanel> {
         sc = Colors.green; si = Icons.check_circle_rounded; sl = 'Approved';
         break;
       case AttendanceStatus.manuallyApproved:
-        sc = Colors.green; si = Icons.check_circle_rounded; sl = 'Manually ✓';
+        sc = Colors.green; si = Icons.check_circle_rounded; sl = 'Manually Approved';
         break;
       case AttendanceStatus.rejectedOutsideRadius:
         sc = Colors.red; si = Icons.cancel_rounded; sl = 'Outside Radius';
         break;
       case AttendanceStatus.rejectedBehindFaculty:
-        sc = Colors.deepOrange; si = Icons.back_hand_rounded; sl = 'Behind Faculty';
+        sc = Colors.deepOrange; si = Icons.back_hand_rounded; sl = 'Behind Teacher';
         break;
       case AttendanceStatus.manuallyRejected:
-        sc = Colors.red; si = Icons.cancel_rounded; sl = 'Manually ✗';
+        sc = Colors.red; si = Icons.cancel_rounded; sl = 'Manually Rejected';
         break;
       case AttendanceStatus.sessionExpired:
-        sc = Colors.grey; si = Icons.timer_off_rounded; sl = 'Expired';
+        sc = Colors.grey; si = Icons.timer_off_rounded; sl = 'Session Expired';
         break;
       case AttendanceStatus.flaggedMockLocation:
-        sc = Colors.orange; si = Icons.warning_rounded; sl = 'Mock GPS';
+        sc = Colors.orange; si = Icons.warning_rounded; sl = 'Mock GPS Detected';
         break;
     }
 
@@ -1312,10 +1315,11 @@ class _FacultyPanelState extends State<FacultyPanel> {
         r.status == AttendanceStatus.rejectedBehindFaculty;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: sc.withOpacity(0.35), width: 1.2),
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: sc.withOpacity(0.35), width: 1.5),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -1323,13 +1327,14 @@ class _FacultyPanelState extends State<FacultyPanel> {
           // Header row
           Row(children: [
             CircleAvatar(
+              radius: 20,
               backgroundColor: cs.primary.withOpacity(0.12),
               child: Text(
                 r.studentName.isNotEmpty
                     ? r.studentName[0].toUpperCase()
                     : '?',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: cs.primary),
+                    fontWeight: FontWeight.bold, fontSize: 16, color: cs.primary),
               ),
             ),
             const SizedBox(width: 10),
@@ -1339,43 +1344,102 @@ class _FacultyPanelState extends State<FacultyPanel> {
                   children: [
                 Text(r.studentName,
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15)),
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 2),
                 Text('Roll: ${r.rollNo}',
                     style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade600)),
+                        fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
               ]),
             ),
             _badge(sl, si, sc),
           ]),
-          const SizedBox(height: 8),
-          const Divider(height: 1),
+          const SizedBox(height: 10),
+
+          // ── Prominent Meter Distance Box ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isWithinRadius
+                  ? Colors.green.withOpacity(0.08)
+                  : Colors.red.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isWithinRadius
+                    ? Colors.green.withOpacity(0.25)
+                    : Colors.red.withOpacity(0.25),
+              ),
+            ),
+            child: Row(children: [
+              Icon(
+                isWithinRadius ? Icons.straighten_rounded : Icons.warning_amber_rounded,
+                size: 18,
+                color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade900),
+                    children: [
+                      const TextSpan(text: 'Distance to You: '),
+                      TextSpan(
+                        text: '${r.distanceMeters.toStringAsFixed(1)} m  ',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800,
+                        ),
+                      ),
+                      TextSpan(
+                        text: isWithinRadius
+                            ? '(Inside ${sessionRadius.toInt()}m limit • ${(sessionRadius - r.distanceMeters).toStringAsFixed(1)}m buffer)'
+                            : '(Exceeds ${sessionRadius.toInt()}m limit by ${(r.distanceMeters - sessionRadius).toStringAsFixed(1)}m)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ]),
+          ),
           const SizedBox(height: 8),
 
           // Info chips
-          Wrap(spacing: 12, runSpacing: 4, children: [
-            _chip(Icons.social_distance_rounded,
-                '${r.distanceMeters.toStringAsFixed(1)} m',
-                r.distanceMeters <= 50 ? Colors.green : Colors.red),
-            _chip(
-                r.isMocked ? Icons.location_off_rounded : Icons.location_on_rounded,
-                r.isMocked ? 'Mock GPS' : 'Real GPS',
-                r.isMocked ? Colors.orange : Colors.green),
+          Wrap(spacing: 8, runSpacing: 6, children: [
             _chip(
                 r.isInFrontSector
                     ? Icons.front_hand_rounded
                     : Icons.back_hand_rounded,
-                r.isInFrontSector ? 'Front' : 'Behind',
-                r.isInFrontSector ? Colors.blue : Colors.deepOrange),
+                r.isInFrontSector
+                    ? 'Front Zone (${r.bearingToStudent.toStringAsFixed(0)}° ${headingToLabel(r.bearingToStudent)})'
+                    : 'Behind Teacher (${r.bearingToStudent.toStringAsFixed(0)}° ${headingToLabel(r.bearingToStudent)})',
+                r.isInFrontSector ? Colors.blue.shade700 : Colors.deepOrange),
+            _chip(
+                r.isMocked ? Icons.location_off_rounded : Icons.verified_user_rounded,
+                r.isMocked ? 'Mock GPS Detected' : 'Hardware GPS',
+                r.isMocked ? Colors.orange.shade800 : Colors.green.shade700),
             _chip(Icons.access_time_rounded,
                 '${r.timestamp.hour.toString().padLeft(2, '0')}:${r.timestamp.minute.toString().padLeft(2, '0')}:${r.timestamp.second.toString().padLeft(2, '0')}',
-                Colors.grey),
+                Colors.grey.shade700),
           ]),
 
           if (r.remarks != null && r.remarks!.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text(r.remarks!,
-                style:
-                    TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                r.remarks!,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+              ),
+            ),
           ],
 
           // Review buttons
@@ -1985,7 +2049,6 @@ class _StudentPanelState extends State<StudentPanel> {
     }
 
     final isRunning = s.isActive && !s.isExpired;
-    final borderColor = isRunning ? Colors.green : s.isExpired ? Colors.grey : Colors.orange;
 
     return Container(
       decoration: BoxDecoration(
@@ -2084,29 +2147,7 @@ class _StudentPanelState extends State<StudentPanel> {
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(children: [
-        Icon(icon, size: 15, color: Colors.grey.shade600),
-        const SizedBox(width: 7),
-        Text('$label: ',
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 13)),
-        Expanded(
-          child: Text(value,
-              style: const TextStyle(fontSize: 13),
-              overflow: TextOverflow.ellipsis),
-        ),
-      ]),
-    );
-  }
 
-  String _fmtDuration(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s remaining';
-  }
 
   String _fmtDurationShort(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -2167,14 +2208,8 @@ class _StudentPanelState extends State<StudentPanel> {
     final mock = _isMock;
     final allowed = inR && inF && !mock;
 
-    // Progress: 0.0 = right on faculty, 1.0 = at exact radius edge, >1.0 = outside
-    final maxDisplay = s.radiusMeters * 2; // show up to 2x radius on bar
-    final progress = (dist / s.radiusMeters).clamp(0.0, 1.0);
-    final distanceColor = dist <= s.radiusMeters * 0.6
-        ? Colors.green
-        : dist <= s.radiusMeters
-            ? Colors.orange
-            : Colors.red;
+    // Progress bar clamped from 0.0 to 1.0 (1.0 = at radius limit)
+    final progress = s.radiusMeters > 0 ? (dist / s.radiusMeters).clamp(0.0, 1.0) : 0.0;
 
     return Column(
       children: [
