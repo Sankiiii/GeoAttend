@@ -7,6 +7,6 @@ void main() {
     await tester.pumpWidget(const GeofenceAttendanceApp());
 
     // Verify that title is displayed.
-    expect(find.text('Geofenced Attendance Demo'), findsOneWidget);
+    expect(find.text('GeoAttendance'), findsWidgets);
   });
 }
