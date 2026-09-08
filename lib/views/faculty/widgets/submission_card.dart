@@ -158,6 +158,12 @@ class SubmissionCard extends StatelessWidget {
                 record.isMocked ? 'Mock GPS Detected' : 'Hardware GPS',
                 record.isMocked ? Colors.orange.shade800 : Colors.green.shade700,
               ),
+              if (record.bleVerified)
+                _buildChip(
+                  Icons.bluetooth_connected_rounded,
+                  'BLE Code #${record.bleCodeUsed?.toString().padLeft(2, '0') ?? '✓'} Verified',
+                  Colors.indigo.shade700,
+                ),
               _buildChip(
                 Icons.access_time_rounded,
                 '${record.timestamp.hour.toString().padLeft(2, '0')}:${record.timestamp.minute.toString().padLeft(2, '0')}:${record.timestamp.second.toString().padLeft(2, '0')}',

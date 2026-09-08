@@ -74,6 +74,20 @@ class DemoToolsCard extends StatelessWidget {
             value: controller.simulateMock,
             onChanged: controller.toggleSimulateMock,
           ),
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              'Simulate BLE Beacon Found (#42)',
+              style: TextStyle(fontSize: 12),
+            ),
+            subtitle: const Text(
+              'Tests Layer 1 challenge without 2nd physical device',
+              style: TextStyle(fontSize: 10),
+            ),
+            value: controller.simulateBeaconFound,
+            onChanged: controller.toggleSimulateBeacon,
+          ),
         ]),
       ),
     );

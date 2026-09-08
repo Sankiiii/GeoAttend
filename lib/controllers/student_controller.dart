@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/attendance_session.dart';
@@ -6,10 +7,12 @@ import '../models/attendance_record.dart';
 import '../models/attendance_status.dart';
 import '../services/location_service.dart';
 import '../services/firebase_service.dart';
+import '../services/ble_scanner_service.dart';
 import '../utils/geo_utils.dart';
 
 class StudentController extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
+  final BleScannerService _bleScanner = BleScannerService();
 
   // Student Identity
   String studentName = '';
@@ -31,19 +34,70 @@ class StudentController extends ChangeNotifier {
   double offsetMeters = 0.0;
   bool simulateMock = false;
 
+  // Layer 1: BLE & Number Challenge State
+  BleBeaconResult? detectedBeacon;
+  bool isScanningBle = false;
+  bool numberChallengeVerified = false;
+  int? verifiedCode;
+  String? challengeError;
+  List<int> challengeOptions = [];
+
+  // Manual / Simulation toggle for testing without a second hardware phone
+  bool simulateBeaconFound = false;
+  int simulatedCode = 42;
+
   StreamSubscription<AttendanceSession?>? _sessionSub;
   StreamSubscription<Position>? _positionSub;
+  StreamSubscription<BleBeaconResult?>? _bleSub;
 
   void init() {
     _startGpsStream();
     _subscribeSession();
+    _subscribeBleScanner();
   }
 
   void _subscribeSession() {
     _sessionSub = _firebaseService.activeSessionStream.listen((session) {
+      final prevUuid = activeSession?.bleSessionUuid;
       activeSession = session;
+
+      if (session != null && session.isActive && !session.isExpired) {
+        if (session.bleSessionUuid.isNotEmpty && session.bleSessionUuid != prevUuid) {
+          _bleScanner.startScanning(session.bleSessionUuid);
+          isScanningBle = true;
+          // Reset challenge if session changed
+          numberChallengeVerified = false;
+          verifiedCode = null;
+          challengeError = null;
+          challengeOptions.clear();
+        }
+      } else {
+        _bleScanner.stopScanning();
+        isScanningBle = false;
+      }
       notifyListeners();
     });
+  }
+
+  void _subscribeBleScanner() {
+    _bleSub = _bleScanner.resultStream.listen((result) {
+      detectedBeacon = result;
+      if (result != null) {
+        _updateChallengeOptions(result.code);
+      }
+      notifyListeners();
+    });
+  }
+
+  void _updateChallengeOptions(int correctCode) {
+    if (challengeOptions.contains(correctCode)) return;
+
+    final rng = Random();
+    final Set<int> options = {correctCode};
+    while (options.length < 5) {
+      options.add(rng.nextInt(100));
+    }
+    challengeOptions = options.toList()..shuffle();
   }
 
   Future<void> _startGpsStream() async {
@@ -119,13 +173,29 @@ class StudentController extends ChangeNotifier {
   bool get isMockDetected =>
       simulateMock || (currentPosition?.isMocked ?? false);
 
-  bool get isReadyToMark =>
-      activeSession != null &&
-      activeSession!.isActive &&
-      !activeSession!.isExpired &&
-      isWithinRadius &&
-      isInFrontSector &&
-      !isMockDetected;
+  bool get isBeaconActive =>
+      (detectedBeacon != null) || simulateBeaconFound;
+
+  int? get activeBeaconCode =>
+      simulateBeaconFound ? simulatedCode : detectedBeacon?.code;
+
+  int? get activeBeaconRssi =>
+      simulateBeaconFound ? -62 : detectedBeacon?.rssi;
+
+  bool get isReadyToMark {
+    final basicReady = activeSession != null &&
+        activeSession!.isActive &&
+        !activeSession!.isExpired &&
+        isWithinRadius &&
+        isInFrontSector &&
+        !isMockDetected;
+
+    // If BLE session UUID is enabled on the session, student must pass Layer 1 number challenge
+    if (activeSession != null && activeSession!.bleSessionUuid.isNotEmpty) {
+      return basicReady && numberChallengeVerified;
+    }
+    return basicReady;
+  }
 
   void setStudentDetails({required String name, required String roll}) {
     studentName = name;
@@ -142,6 +212,53 @@ class StudentController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleSimulateBeacon(bool val) {
+    simulateBeaconFound = val;
+    if (val) {
+      _updateChallengeOptions(simulatedCode);
+    } else {
+      if (detectedBeacon == null) {
+        challengeOptions.clear();
+        numberChallengeVerified = false;
+        verifiedCode = null;
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Verifies if student selected the right code broadcast by the faculty
+  bool verifyNumberChallenge(int selectedNumber) {
+    final targetCode = activeBeaconCode;
+    if (targetCode == null) {
+      challengeError = 'No beacon detected yet.';
+      notifyListeners();
+      return false;
+    }
+
+    if (selectedNumber == targetCode) {
+      numberChallengeVerified = true;
+      verifiedCode = selectedNumber;
+      challengeError = null;
+      notifyListeners();
+      return true;
+    } else {
+      numberChallengeVerified = false;
+      challengeError = 'Incorrect code! Listen carefully to the faculty.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void resetChallenge() {
+    numberChallengeVerified = false;
+    verifiedCode = null;
+    challengeError = null;
+    if (activeBeaconCode != null) {
+      _updateChallengeOptions(activeBeaconCode!);
+    }
+    notifyListeners();
+  }
+
   Future<AttendanceRecord> submitAttendance() async {
     if (studentName.trim().isEmpty || rollNo.trim().isEmpty) {
       throw Exception('Please fill in your Full Name and Roll Number.');
@@ -154,6 +271,9 @@ class StudentController extends ChangeNotifier {
     }
     if (currentPosition == null) {
       throw Exception('Waiting for GPS coordinates.');
+    }
+    if (activeSession!.bleSessionUuid.isNotEmpty && !numberChallengeVerified) {
+      throw Exception('Please complete the BLE Number Challenge first.');
     }
 
     isSubmitting = true;
@@ -184,7 +304,7 @@ class StudentController extends ChangeNotifier {
       } else {
         status = AttendanceStatus.approved;
         remark =
-            'Verified inside geofence: ${dist.toStringAsFixed(1)}m, ${inSector ? 'front sector' : 'full 360°'}.';
+            'Verified Layer 1 (BLE Code #$verifiedCode) & Layer 3 (GPS ${dist.toStringAsFixed(1)}m, ${inSector ? 'front sector' : '360°'}).';
       }
 
       final record = AttendanceRecord(
@@ -200,6 +320,8 @@ class StudentController extends ChangeNotifier {
         timestamp: DateTime.now(),
         status: status,
         remarks: remark,
+        bleVerified: numberChallengeVerified,
+        bleCodeUsed: verifiedCode,
       );
 
       await _firebaseService.submitAttendance(record);
@@ -215,6 +337,8 @@ class StudentController extends ChangeNotifier {
   void dispose() {
     _sessionSub?.cancel();
     _positionSub?.cancel();
+    _bleSub?.cancel();
+    _bleScanner.dispose();
     super.dispose();
   }
 }

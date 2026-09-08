@@ -7,6 +7,7 @@ import '../role_selector_screen.dart';
 import 'widgets/distance_meter_card.dart';
 import 'widgets/verification_badges.dart';
 import 'widgets/demo_tools_card.dart';
+import 'widgets/number_challenge_card.dart';
 
 class StudentScreen extends StatefulWidget {
   const StudentScreen({super.key});
@@ -47,10 +48,13 @@ class _StudentScreenState extends State<StudentScreen> {
       if (!mounted) return;
 
       if (record.status == AttendanceStatus.approved) {
+        final bleInfo = record.bleVerified
+            ? '• Layer 1 (BLE): Code #${record.bleCodeUsed?.toString().padLeft(2, '0')} Verified ✓\n'
+            : '';
         _showResultDialog(
           title: 'Attendance Marked! ✅',
           message:
-              'You are verified inside the classroom.\n\n• Distance: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: Front sector ✓\n• Hardware GPS: Clean ✓\n\nYour attendance is registered live on the teacher\'s panel.',
+              'You are verified inside the classroom.\n\n$bleInfo• Layer 3 (GPS): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓\n\nYour attendance is registered live on the teacher\'s panel.',
           isSuccess: true,
         );
       } else if (record.status == AttendanceStatus.flaggedMockLocation) {
@@ -173,6 +177,11 @@ class _StudentScreenState extends State<StudentScreen> {
                 const SizedBox(height: 14),
 
                 if (isSessionActive) ...[
+                  if (session.bleSessionUuid.isNotEmpty || _controller.simulateBeaconFound) ...[
+                    NumberChallengeCard(controller: _controller),
+                    const SizedBox(height: 12),
+                  ],
+
                   DistanceMeterCard(
                     controller: _controller,
                     session: session,

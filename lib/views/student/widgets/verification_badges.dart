@@ -18,17 +18,44 @@ class VerificationBadges extends StatelessWidget {
     final inF = controller.isInFrontSector;
     final mock = controller.isMockDetected;
 
-    return Row(children: [
-      // Radius Badge
-      Expanded(
-        child: _buildMiniStatusCard(
-          icon: inR ? Icons.my_location_rounded : Icons.location_off_rounded,
-          color: inR ? Colors.green : Colors.red,
-          label: inR ? 'In Range' : 'Out of Range',
-          sub: '${session.radiusMeters.toInt()} m limit',
+    final isBleVerified = controller.numberChallengeVerified;
+    final isBeaconFound = controller.isBeaconActive;
+
+    return Column(children: [
+      Row(children: [
+        // Layer 1 BLE Badge
+        if (session.bleSessionUuid.isNotEmpty) ...[
+          Expanded(
+            child: _buildMiniStatusCard(
+              icon: isBleVerified
+                  ? Icons.verified_rounded
+                  : (isBeaconFound ? Icons.bluetooth_audio_rounded : Icons.bluetooth_searching_rounded),
+              color: isBleVerified
+                  ? Colors.green
+                  : (isBeaconFound ? Colors.blue : Colors.grey),
+              label: isBleVerified
+                  ? 'BLE Verified'
+                  : (isBeaconFound ? 'Beacon Found' : 'Scanning BLE'),
+              sub: isBleVerified
+                  ? 'Code #${controller.verifiedCode?.toString().padLeft(2, '0')}'
+                  : (isBeaconFound ? 'Enter Code' : 'Searching…'),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+
+        // Radius Badge (Layer 3)
+        Expanded(
+          child: _buildMiniStatusCard(
+            icon: inR ? Icons.my_location_rounded : Icons.location_off_rounded,
+            color: inR ? Colors.green : Colors.red,
+            label: inR ? 'In Range' : 'Out of Range',
+            sub: '${session.radiusMeters.toInt()} m limit',
+          ),
         ),
-      ),
-      const SizedBox(width: 8),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
 
       // Direction Badge (if directional mode is ON)
       if (session.directionalModeEnabled) ...[
@@ -52,6 +79,7 @@ class VerificationBadges extends StatelessWidget {
           sub: mock ? 'Flagged!' : 'Verified',
         ),
       ),
+      ]),
     ]);
   }
 

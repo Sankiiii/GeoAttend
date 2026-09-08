@@ -13,6 +13,9 @@ class AttendanceSession {
   final double facultyHeading; // 0–360° compass direction faculty faces
   final double frontSectorDegrees; // configurable arc width (30°–360°)
 
+  // Layer 1 — BLE beacon fields
+  final String bleSessionUuid; // random UUID per session, embedded in BLE packet
+
   AttendanceSession({
     required this.title,
     required this.facultyName,
@@ -25,6 +28,7 @@ class AttendanceSession {
     this.directionalModeEnabled = false,
     this.facultyHeading = 0.0,
     this.frontSectorDegrees = 180.0,
+    this.bleSessionUuid = '',
   });
 
   bool get isExpired => DateTime.now().isAfter(endTime) || !isActive;
@@ -47,6 +51,7 @@ class AttendanceSession {
         'directionalModeEnabled': directionalModeEnabled,
         'facultyHeading': facultyHeading,
         'frontSectorDegrees': frontSectorDegrees,
+        'bleSessionUuid': bleSessionUuid,
       };
 
   factory AttendanceSession.fromJson(Map<dynamic, dynamic> json) {
@@ -69,6 +74,7 @@ class AttendanceSession {
       facultyHeading: (json['facultyHeading'] as num?)?.toDouble() ?? 0.0,
       frontSectorDegrees:
           (json['frontSectorDegrees'] as num?)?.toDouble() ?? 180.0,
+      bleSessionUuid: json['bleSessionUuid'] as String? ?? '',
     );
   }
 }

@@ -74,7 +74,7 @@ class _FacultyScreenState extends State<FacultyScreen> {
                     ),
                     const SizedBox(width: 4),
                     const Text(
-                      'Firebase Live',
+                      'Layer 1 (BLE) + Layer 3 (GPS)',
                       style: TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                   ],
@@ -89,7 +89,11 @@ class _FacultyScreenState extends State<FacultyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (isRunning) _buildActiveBanner(session, cs),
+                if (isRunning) ...[
+                  _buildActiveBanner(session, cs),
+                  const SizedBox(height: 12),
+                  _buildBleCodeBanner(session, cs),
+                ],
                 if (!isRunning && session != null && session.isExpired)
                   _buildExpiredBanner(session),
                 if (isRunning || (session != null && session.isExpired))
@@ -138,7 +142,7 @@ class _FacultyScreenState extends State<FacultyScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.1),
+        color: Colors.green.withOpacity(0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.green, width: 1.5),
       ),
@@ -169,6 +173,94 @@ class _FacultyScreenState extends State<FacultyScreen> {
           ),
         ]),
       ]),
+    );
+  }
+
+  Widget _buildBleCodeBanner(AttendanceSession s, ColorScheme cs) {
+    final codeStr = _controller.bleCurrentCode.toString().padLeft(2, '0');
+    final secondsLeft = _controller.bleSecondsUntilRotation;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [cs.primary, cs.primary.withBlue(220)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: cs.primary.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.lightGreenAccent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'BLE Broadcast Active (Layer 1)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Rotates in ${secondsLeft}s',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            codeStr,
+            style: const TextStyle(
+              fontSize: 54,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '🗣️ Speak this number aloud to the class',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -208,21 +300,27 @@ class _FacultyScreenState extends State<FacultyScreen> {
         'Submissions (${_controller.records.length})',
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
-      const SizedBox(width: 6),
+      const Spacer(),
       if (isRunning)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: Colors.green,
-            borderRadius: BorderRadius.circular(10),
+            color: Colors.green.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: const Text(
-            'LIVE',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_tethering, size: 13, color: Colors.green),
+              SizedBox(width: 4),
+              Text(
+                'Live',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green),
+              ),
+            ],
           ),
         ),
     ]);
@@ -230,24 +328,28 @@ class _FacultyScreenState extends State<FacultyScreen> {
 
   Widget _buildEmptyState() {
     return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(14),
+      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          Icon(Icons.people_outline_rounded,
+              size: 48, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          Text(
+            'No attendance submissions yet',
+            style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+                fontSize: 15),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Start a session and student attendance marks will stream here live.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          ),
+        ],
       ),
-      child: const Column(children: [
-        Icon(Icons.inbox_rounded, size: 44, color: Colors.grey),
-        SizedBox(height: 8),
-        Text(
-          'No submissions yet',
-          style: TextStyle(color: Colors.grey, fontSize: 14),
-        ),
-        Text(
-          'Student attendance entries will appear here in real-time.',
-          style: TextStyle(color: Colors.grey, fontSize: 12),
-          textAlign: TextAlign.center,
-        ),
-      ]),
     );
   }
 }

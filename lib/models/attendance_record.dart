@@ -14,6 +14,10 @@ class AttendanceRecord {
   AttendanceStatus status;
   String? remarks;
 
+  // Layer 1 — BLE verification fields
+  final bool bleVerified;   // true if student passed the number challenge
+  final int? bleCodeUsed;   // the 2-digit code that was matched (audit trail)
+
   AttendanceRecord({
     required this.id,
     required this.studentName,
@@ -27,6 +31,8 @@ class AttendanceRecord {
     required this.timestamp,
     required this.status,
     this.remarks,
+    this.bleVerified = false,
+    this.bleCodeUsed,
   });
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +48,8 @@ class AttendanceRecord {
         'timestamp': timestamp.millisecondsSinceEpoch,
         'status': status.firebaseKey,
         'remarks': remarks ?? '',
+        'bleVerified': bleVerified,
+        'bleCodeUsed': bleCodeUsed,
       };
 
   factory AttendanceRecord.fromJson(String id, Map<dynamic, dynamic> json) {
@@ -61,6 +69,8 @@ class AttendanceRecord {
       status:
           AttendanceStatusX.fromKey(json['status'] as String? ?? 'approved'),
       remarks: json['remarks'] as String?,
+      bleVerified: json['bleVerified'] as bool? ?? false,
+      bleCodeUsed: json['bleCodeUsed'] as int?,
     );
   }
 }
