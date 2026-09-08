@@ -27,7 +27,7 @@ extension AttendanceStatusX on AttendanceStatus {
       case AttendanceStatus.manuallyApproved:
         return 'Manually Approved';
       case AttendanceStatus.rejectedOutsideRadius:
-        return 'Outside Radius';
+        return 'Outside Bluetooth Range';
       case AttendanceStatus.rejectedBehindFaculty:
         return 'Behind Teacher';
       case AttendanceStatus.manuallyRejected:

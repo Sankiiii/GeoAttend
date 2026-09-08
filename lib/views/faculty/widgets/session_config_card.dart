@@ -75,9 +75,9 @@ class SessionConfigCard extends StatelessWidget {
             _buildGpsBox(context, cs),
             const SizedBox(height: 16),
 
-            // Geofence Radius Slider
+            // Bluetooth Range Slider
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Geofence Radius',
+              const Text('Bluetooth Range (BLE Proximity)',
                   style: TextStyle(fontWeight: FontWeight.w600)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -141,7 +141,7 @@ class SessionConfigCard extends StatelessWidget {
                                 content: Text(
                                   controller.directionalMode
                                       ? 'Session started! Directional front ${controller.sectorDegrees.toInt()}° zone active.'
-                                      : 'Session started! Full 360° geofence active.',
+                                      : 'Session started! Full 360° Bluetooth range active.',
                                 ),
                                 backgroundColor: Colors.green.shade700,
                               ),

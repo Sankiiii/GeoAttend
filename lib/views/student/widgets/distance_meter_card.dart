@@ -59,7 +59,7 @@ class DistanceMeterCard extends StatelessWidget {
                     : mock
                         ? 'Mock GPS Detected — Not Allowed'
                         : !inR
-                            ? 'Too Far from Classroom'
+                            ? 'Outside Bluetooth Range'
                             : 'Behind Faculty — Move Forward',
                 style: const TextStyle(
                   color: Colors.white,
@@ -111,7 +111,7 @@ class DistanceMeterCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Limit: ${session.radiusMeters.toInt()} m',
+                    'BLE Range: ${session.radiusMeters.toInt()} m',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 10,

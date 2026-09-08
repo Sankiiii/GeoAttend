@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'permission_service.dart';
 
 /// Faculty-side BLE advertiser.
 ///
@@ -37,6 +38,7 @@ class BleAdvertiserService {
   int _currentCode = 0;
   int _secondsUntilRotation = rotationSeconds;
   bool _isAdvertising = false;
+  bool _isDisposed = false;
   String _sessionUuid = '';
 
   // ---------------------------------------------------------------------------
@@ -64,7 +66,14 @@ class BleAdvertiserService {
 
   /// Starts BLE advertising for [sessionUuid].
   Future<void> startAdvertising(String sessionUuid) async {
+    if (_isDisposed) return;
+
+    // Check & request Bluetooth permissions
+    await AppPermissionService.requestBleAndLocationPermissions();
+
     await stopAdvertising();
+    if (_isDisposed) return;
+
     _sessionUuid = sessionUuid;
     _generateNewCode();
     await _startBleAdvertising();
@@ -72,7 +81,7 @@ class BleAdvertiserService {
     _startCountdownTimer();
   }
 
-  /// Stops all advertising and timers.
+  /// Stops all advertising and timers without crashing if already disposed.
   Future<void> stopAdvertising() async {
     _rotationTimer?.cancel();
     _countdownTimer?.cancel();
@@ -80,20 +89,39 @@ class BleAdvertiserService {
     _countdownTimer = null;
 
     if (_isAdvertising) {
+      _isAdvertising = false;
       try {
         await _blePeripheral.stop();
       } catch (e) {
         debugPrint('BleAdvertiser: stopAdvertising error: $e');
       }
-      _isAdvertising = false;
-      _advertisingController.add(false);
+      if (!_isDisposed && !_advertisingController.isClosed) {
+        _advertisingController.add(false);
+      }
     }
   }
 
   void dispose() {
-    stopAdvertising();
-    _codeController.close();
-    _advertisingController.close();
+    _isDisposed = true;
+    _rotationTimer?.cancel();
+    _countdownTimer?.cancel();
+    _rotationTimer = null;
+    _countdownTimer = null;
+
+    if (_isAdvertising) {
+      _isAdvertising = false;
+      _blePeripheral.stop().catchError((e) {
+        debugPrint('BleAdvertiser: stop on dispose error: $e');
+        return PeripheralBluetoothState.unknown;
+      });
+    }
+
+    if (!_codeController.isClosed) {
+      _codeController.close();
+    }
+    if (!_advertisingController.isClosed) {
+      _advertisingController.close();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -101,13 +129,17 @@ class BleAdvertiserService {
   // ---------------------------------------------------------------------------
 
   void _generateNewCode() {
+    if (_isDisposed) return;
     _currentCode = _random.nextInt(100); // 0-99
     _secondsUntilRotation = rotationSeconds;
-    _codeController.add(_currentCode);
+    if (!_isDisposed && !_codeController.isClosed) {
+      _codeController.add(_currentCode);
+    }
     debugPrint('BleAdvertiser: new code -> $_currentCode');
   }
 
   Future<void> _startBleAdvertising() async {
+    if (_isDisposed) return;
     try {
       final payload = _buildManufacturerData(_sessionUuid, _currentCode);
 
@@ -121,30 +153,40 @@ class BleAdvertiserService {
       );
 
       _isAdvertising = true;
-      _advertisingController.add(true);
+      if (!_isDisposed && !_advertisingController.isClosed) {
+        _advertisingController.add(true);
+      }
       debugPrint('BleAdvertiser: advertising started');
     } catch (e) {
       debugPrint('BleAdvertiser: startAdvertising error: $e');
       _isAdvertising = false;
-      _advertisingController.add(false);
+      if (!_isDisposed && !_advertisingController.isClosed) {
+        _advertisingController.add(false);
+      }
     }
   }
 
   void _startRotationTimer() {
+    if (_isDisposed) return;
     _rotationTimer =
         Timer.periodic(const Duration(seconds: rotationSeconds), (_) async {
+      if (_isDisposed) return;
       _generateNewCode();
       if (_isAdvertising) {
         try {
           await _blePeripheral.stop();
         } catch (_) {}
-        await _startBleAdvertising();
+        if (!_isDisposed) {
+          await _startBleAdvertising();
+        }
       }
     });
   }
 
   void _startCountdownTimer() {
+    if (_isDisposed) return;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_isDisposed) return;
       if (_secondsUntilRotation > 0) {
         _secondsUntilRotation--;
       }

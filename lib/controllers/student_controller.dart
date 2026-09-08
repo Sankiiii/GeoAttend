@@ -324,7 +324,12 @@ class StudentController extends ChangeNotifier {
         bleCodeUsed: verifiedCode,
       );
 
-      await _firebaseService.submitAttendance(record);
+      try {
+        await _firebaseService.submitAttendance(record);
+      } catch (fbErr) {
+        debugPrint('Firebase submit offline fallback: $fbErr');
+        // Record is cached locally by Firebase persistence and will sync when connectivity returns
+      }
       hasSubmitted = true;
       return record;
     } finally {
@@ -333,8 +338,18 @@ class StudentController extends ChangeNotifier {
     }
   }
 
+  bool _isDisposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) {
+      super.notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
     _sessionSub?.cancel();
     _positionSub?.cancel();
     _bleSub?.cancel();

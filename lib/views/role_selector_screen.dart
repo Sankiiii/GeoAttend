@@ -53,7 +53,7 @@ class RoleSelectorScreen extends StatelessWidget {
                 icon: Icons.manage_accounts_rounded,
                 title: 'Faculty / Teacher',
                 subtitle:
-                    'Start session • Set geofence • View live submissions',
+                    'Start session • Set BLE range • View live submissions',
                 color: Colors.blue.shade700,
                 onTap: () => Navigator.pushReplacement(
                   context,

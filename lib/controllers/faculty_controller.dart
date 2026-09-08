@@ -247,12 +247,18 @@ class FacultyController extends ChangeNotifier {
         '${hex.substring(20)}';
   }
 
-  // ---------------------------------------------------------------------------
-  // Dispose
-  // ---------------------------------------------------------------------------
+  bool _isDisposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_isDisposed) {
+      super.notifyListeners();
+    }
+  }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _sessionSub?.cancel();
     _recordsSub?.cancel();
     _ticker?.cancel();

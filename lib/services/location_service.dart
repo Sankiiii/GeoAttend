@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geolocator_android/geolocator_android.dart';
-import 'package:geolocator_apple/geolocator_apple.dart';
 
 class LocationService {
   /// Build platform-tuned high accuracy settings that bypass caches.

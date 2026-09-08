@@ -2,12 +2,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'ble_advertiser_service.dart';
+import 'permission_service.dart';
 
 /// Represents a parsed BLE beacon result from the faculty phone.
 class BleBeaconResult {
-  final int code;      // 2-digit number embedded in the packet
-  final int rssi;      // received signal strength (negative dBm)
-  final String uuid;   // parsed session UUID
+  final int code; // 2-digit number embedded in the packet
+  final int rssi; // received signal strength (negative dBm)
+  final String uuid; // parsed session UUID
 
   const BleBeaconResult({
     required this.code,
@@ -32,7 +33,9 @@ class BleScannerService {
       StreamController<BleBeaconResult?>.broadcast();
 
   StreamSubscription<List<ScanResult>>? _scanSub;
+  StreamSubscription<bool>? _isScanningSub;
   bool _isScanning = false;
+  bool _isDisposed = false;
   String _targetUuid = '';
   BleBeaconResult? _lastResult;
 
@@ -56,34 +59,46 @@ class BleScannerService {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /// Starts scanning for the faculty beacon identified by [sessionUuid].
-  ///
-  /// Emits [BleBeaconResult] on [resultStream] whenever a matching packet
-  /// is received.  Safe to call multiple times — stops any existing scan first.
+  /// Starts scanning for the faculty beacon.
+  /// If [sessionUuid] is provided, matches against that UUID; otherwise detects any GeoAttend beacon.
   Future<void> startScanning(String sessionUuid) async {
+    if (_isDisposed) return;
+
+    // Check & request Bluetooth runtime permissions
+    await AppPermissionService.requestBleAndLocationPermissions();
+
     await stopScanning();
+    if (_isDisposed) return;
+
     _targetUuid = sessionUuid.replaceAll('-', '').toLowerCase();
     _lastResult = null;
 
     try {
       await FlutterBluePlus.startScan(
-        timeout: const Duration(hours: 2), // long-running; we stop manually
+        timeout: const Duration(hours: 2),
         androidScanMode: AndroidScanMode.lowLatency,
       );
 
       _isScanning = true;
 
-      _scanSub = FlutterBluePlus.scanResults.listen((results) {
-        for (final r in results) {
-          _handleScanResult(r);
-        }
-      });
+      _scanSub?.cancel();
+      _scanSub = FlutterBluePlus.scanResults.listen(
+        (results) {
+          if (_isDisposed) return;
+          for (final r in results) {
+            _handleScanResult(r);
+          }
+        },
+        onError: (err) {
+          debugPrint('BleScannerService scanResults error: $err');
+        },
+      );
 
-      // Detect when BLE scan stops unexpectedly and mark not-scanning
-      FlutterBluePlus.isScanning.listen((scanning) {
+      _isScanningSub?.cancel();
+      _isScanningSub = FlutterBluePlus.isScanning.listen((scanning) {
         if (!scanning && _isScanning) {
           _isScanning = false;
-          debugPrint('BleScannerService: scan stopped unexpectedly');
+          debugPrint('BleScannerService: scan stopped');
         }
       });
 
@@ -98,23 +113,41 @@ class BleScannerService {
   Future<void> stopScanning() async {
     await _scanSub?.cancel();
     _scanSub = null;
+    await _isScanningSub?.cancel();
+    _isScanningSub = null;
 
     if (_isScanning) {
+      _isScanning = false;
       try {
         await FlutterBluePlus.stopScan();
       } catch (e) {
         debugPrint('BleScannerService: stopScan error: $e');
       }
-      _isScanning = false;
     }
 
     _lastResult = null;
-    _resultController.add(null);
+    if (!_isDisposed && !_resultController.isClosed) {
+      _resultController.add(null);
+    }
   }
 
   void dispose() {
-    stopScanning();
-    _resultController.close();
+    _isDisposed = true;
+    _scanSub?.cancel();
+    _scanSub = null;
+    _isScanningSub?.cancel();
+    _isScanningSub = null;
+
+    if (_isScanning) {
+      _isScanning = false;
+      FlutterBluePlus.stopScan().catchError((e) {
+        debugPrint('BleScannerService: stop on dispose error: $e');
+      });
+    }
+
+    if (!_resultController.isClosed) {
+      _resultController.close();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -122,17 +155,21 @@ class BleScannerService {
   // ---------------------------------------------------------------------------
 
   void _handleScanResult(ScanResult result) {
+    if (_isDisposed) return;
+
     final mfData = result.advertisementData.manufacturerData;
     final payload = mfData[_manufacturerId];
     if (payload == null || payload.isEmpty) return;
 
-    // Verify the UUID in the packet matches the session UUID from Firebase
     final parsedUuid = BleAdvertiserService.parseUuid(payload);
     if (parsedUuid == null) return;
 
     final parsedClean = parsedUuid.replaceAll('-', '').toLowerCase();
-    if (_targetUuid.isNotEmpty && !parsedClean.startsWith(_targetUuid.substring(0, 8))) {
-      return; // wrong session
+    // If target UUID is specified, filter by it; if not specified, accept any GeoAttend beacon
+    if (_targetUuid.isNotEmpty && _targetUuid.length >= 8) {
+      if (!parsedClean.startsWith(_targetUuid.substring(0, 8))) {
+        return; // wrong session
+      }
     }
 
     final code = BleAdvertiserService.parseCode(payload);
@@ -145,7 +182,9 @@ class BleScannerService {
     );
 
     _lastResult = beaconResult;
-    _resultController.add(beaconResult);
+    if (!_isDisposed && !_resultController.isClosed) {
+      _resultController.add(beaconResult);
+    }
 
     debugPrint(
       'BleScannerService: beacon detected — code=$code, rssi=${result.rssi}',

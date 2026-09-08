@@ -120,8 +120,8 @@ class SubmissionCard extends StatelessWidget {
                         ),
                         TextSpan(
                           text: isWithinRadius
-                              ? '(Inside ${sessionRadius.toInt()}m limit • ${(sessionRadius - record.distanceMeters).toStringAsFixed(1)}m buffer)'
-                              : '(Exceeds ${sessionRadius.toInt()}m limit by ${(record.distanceMeters - sessionRadius).toStringAsFixed(1)}m)',
+                              ? '(Inside ${sessionRadius.toInt()}m BLE range • ${(sessionRadius - record.distanceMeters).toStringAsFixed(1)}m buffer)'
+                              : '(Exceeds ${sessionRadius.toInt()}m BLE range by ${(record.distanceMeters - sessionRadius).toStringAsFixed(1)}m)',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,

@@ -73,9 +73,9 @@ class _StudentScreenState extends State<StudentScreen> {
         );
       } else {
         _showResultDialog(
-          title: 'Outside Classroom Boundary ❌',
+          title: 'Outside Bluetooth Range ❌',
           message:
-              'You are ${record.distanceMeters.toStringAsFixed(1)} m away from the classroom.\nMaximum allowed radius is ${_controller.activeSession?.radiusMeters.toInt()} m.',
+              'You are ${record.distanceMeters.toStringAsFixed(1)} m away from the faculty.\nMaximum allowed Bluetooth range is ${_controller.activeSession?.radiusMeters.toInt()} m.',
           isSuccess: false,
         );
       }

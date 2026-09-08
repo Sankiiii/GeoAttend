@@ -50,7 +50,7 @@ class VerificationBadges extends StatelessWidget {
             icon: inR ? Icons.my_location_rounded : Icons.location_off_rounded,
             color: inR ? Colors.green : Colors.red,
             label: inR ? 'In Range' : 'Out of Range',
-            sub: '${session.radiusMeters.toInt()} m limit',
+            sub: '${session.radiusMeters.toInt()} m BLE range',
           ),
         ),
       ]),

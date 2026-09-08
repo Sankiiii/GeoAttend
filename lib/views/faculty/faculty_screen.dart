@@ -155,7 +155,7 @@ class _FacultyScreenState extends State<FacultyScreen> {
                 style: const TextStyle(
                     fontWeight: FontWeight.bold, color: Colors.green)),
             Text(
-              '${s.radiusMeters.toInt()}m radius'
+              '${s.radiusMeters.toInt()}m Bluetooth range'
               '${s.directionalModeEnabled ? ' • Front ${s.frontSectorDegrees.toInt()}° (${GeoUtils.headingToLabel(s.facultyHeading)})' : ' • Full 360°'}',
               style: const TextStyle(fontSize: 12),
             ),
