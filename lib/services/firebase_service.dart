@@ -10,6 +10,13 @@ class FirebaseService {
   DatabaseReference get _sessionRef => _db.ref('activeSession');
   DatabaseReference get _recordsRef => _db.ref('attendanceRecords');
 
+  /// Stream of Firebase connection status (true = connected, false = offline).
+  Stream<bool> get isConnectedStream {
+    return _db.ref('.info/connected').onValue.map((event) {
+      return event.snapshot.value == true;
+    });
+  }
+
   /// Stream of the active attendance session.
   Stream<AttendanceSession?> get activeSessionStream {
     return _sessionRef.onValue.map((event) {

@@ -8,6 +8,7 @@ import '../models/attendance_status.dart';
 import '../services/location_service.dart';
 import '../services/firebase_service.dart';
 import '../services/ble_scanner_service.dart';
+import '../services/sync_queue_service.dart';
 import '../utils/geo_utils.dart';
 
 class StudentController extends ChangeNotifier {
@@ -29,6 +30,7 @@ class StudentController extends ChangeNotifier {
   // Submitting state
   bool isSubmitting = false;
   bool hasSubmitted = false;
+  bool wasSubmittedOffline = false;
 
   // Sandbox simulation tools
   double offsetMeters = 0.0;
@@ -54,6 +56,7 @@ class StudentController extends ChangeNotifier {
     _startGpsStream();
     _subscribeSession();
     _subscribeBleScanner();
+    SyncQueueService().init();
   }
 
   void _subscribeSession() {
@@ -324,11 +327,17 @@ class StudentController extends ChangeNotifier {
         bleCodeUsed: verifiedCode,
       );
 
+      // 1. Always persist to local queue first (guaranteed 100% offline safety)
+      await SyncQueueService().enqueue(record, isSynced: false);
+
+      // 2. Try pushing to Firebase
       try {
         await _firebaseService.submitAttendance(record);
+        await SyncQueueService().enqueue(record, isSynced: true);
+        wasSubmittedOffline = false;
       } catch (fbErr) {
         debugPrint('Firebase submit offline fallback: $fbErr');
-        // Record is cached locally by Firebase persistence and will sync when connectivity returns
+        wasSubmittedOffline = true;
       }
       hasSubmitted = true;
       return record;

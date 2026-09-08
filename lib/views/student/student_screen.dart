@@ -8,6 +8,7 @@ import 'widgets/distance_meter_card.dart';
 import 'widgets/verification_badges.dart';
 import 'widgets/demo_tools_card.dart';
 import 'widgets/number_challenge_card.dart';
+import 'widgets/sync_status_card.dart';
 
 class StudentScreen extends StatefulWidget {
   const StudentScreen({super.key});
@@ -51,10 +52,12 @@ class _StudentScreenState extends State<StudentScreen> {
         final bleInfo = record.bleVerified
             ? '• Layer 1 (BLE): Code #${record.bleCodeUsed?.toString().padLeft(2, '0')} Verified ✓\n'
             : '';
+        final isOffline = _controller.wasSubmittedOffline;
         _showResultDialog(
-          title: 'Attendance Marked! ✅',
-          message:
-              'You are verified inside the classroom.\n\n$bleInfo• Layer 3 (GPS): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓\n\nYour attendance is registered live on the teacher\'s panel.',
+          title: isOffline ? 'Attendance Saved Offline! 📱' : 'Attendance Marked! ✅',
+          message: isOffline
+              ? 'You are verified inside Bluetooth range.\n\n$bleInfo• Bluetooth Range: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n\nYour record is safely stored in your phone\'s offline queue and will automatically sync to the faculty dashboard when connected to the internet.'
+              : 'You are verified inside the classroom.\n\n$bleInfo• Bluetooth Range: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓\n\nYour attendance is registered live on the teacher\'s panel.',
           isSuccess: true,
         );
       } else if (record.status == AttendanceStatus.flaggedMockLocation) {
@@ -171,6 +174,9 @@ class _StudentScreenState extends State<StudentScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildSessionBanner(session, cs),
+                const SizedBox(height: 10),
+
+                const SyncStatusCard(),
                 const SizedBox(height: 14),
 
                 _buildIdentityCard(cs),
