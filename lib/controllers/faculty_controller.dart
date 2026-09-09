@@ -190,6 +190,7 @@ class FacultyController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final bleUuid = _generateUuid();
       // 1. Start BLE advertising first (generates initial code)
       await _bleAdvertiser.startAdvertising(bleUuid);
       bleCurrentCode = _bleAdvertiser.currentCode;
