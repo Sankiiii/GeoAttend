@@ -16,6 +16,7 @@ class AttendanceSession {
   // Layer 1 — BLE beacon fields
   final String bleSessionUuid; // random UUID per session, embedded in BLE packet
   final int? currentBleCode; // live 2-digit rotating code mirrored to Firebase
+  final String roomNumber; // classroom or hall identifier
 
   AttendanceSession({
     required this.title,
@@ -31,6 +32,7 @@ class AttendanceSession {
     this.frontSectorDegrees = 180.0,
     this.bleSessionUuid = '',
     this.currentBleCode,
+    this.roomNumber = 'LH-1',
   });
 
   bool get isExpired => DateTime.now().isAfter(endTime) || !isActive;
@@ -55,6 +57,7 @@ class AttendanceSession {
         'frontSectorDegrees': frontSectorDegrees,
         'bleSessionUuid': bleSessionUuid,
         'currentBleCode': currentBleCode,
+        'roomNumber': roomNumber,
       };
 
   factory AttendanceSession.fromJson(Map<dynamic, dynamic> json) {
@@ -79,6 +82,7 @@ class AttendanceSession {
           (json['frontSectorDegrees'] as num?)?.toDouble() ?? 180.0,
       bleSessionUuid: json['bleSessionUuid'] as String? ?? '',
       currentBleCode: json['currentBleCode'] as int?,
+      roomNumber: json['roomNumber'] as String? ?? 'LH-1',
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../controllers/student_controller.dart';
+import '../../../services/ble_scanner_service.dart';
 
 class NumberChallengeCard extends StatefulWidget {
   final StudentController controller;
@@ -146,6 +147,11 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
             ),
 
             const SizedBox(height: 14),
+
+            // 24-Byte BLE Beacon Observation Card
+            if (controller.detectedBeacon != null)
+              _buildBeaconObservationBanner(
+                  context, cs, controller.detectedBeacon!),
 
             // State 1: Verified Successfully
             if (isVerified) ...[
@@ -393,6 +399,91 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBeaconObservationBanner(
+      BuildContext context, ColorScheme cs, BleBeaconResult beacon) {
+    final dist = beacon.estimatedMeters;
+    final inRange = beacon.isWithinRadius;
+    final crcHex =
+        beacon.checksum.toRadixString(16).padLeft(4, '0').toUpperCase();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: beacon.isCrcValid
+              ? cs.primary.withValues(alpha: 0.3)
+              : Colors.red.shade300,
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.sensors_rounded, size: 16, color: cs.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${beacon.courseCode} • Room ${beacon.roomNumber}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: beacon.isCrcValid
+                      ? Colors.green.shade50
+                      : Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  beacon.isCrcValid ? 'CRC: 0x$crcHex ✓' : 'CRC Error ✗',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: beacon.isCrcValid
+                        ? Colors.green.shade800
+                        : Colors.red.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Faculty: Prof ${beacon.facultyInitials} • ⏱️ ${beacon.remainingMinutes}m left',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              ),
+              Text(
+                dist >= 0
+                    ? '~${dist.toStringAsFixed(1)}m / ${beacon.allowedRadius}m max'
+                    : '${beacon.allowedRadius}m max',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color:
+                      inRange ? Colors.green.shade700 : Colors.red.shade700,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

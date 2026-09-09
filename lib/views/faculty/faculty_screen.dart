@@ -17,6 +17,7 @@ class _FacultyScreenState extends State<FacultyScreen> {
   late final FacultyController _controller;
   late final TextEditingController _titleController;
   late final TextEditingController _nameController;
+  late final TextEditingController _roomController;
 
   @override
   void initState() {
@@ -24,12 +25,14 @@ class _FacultyScreenState extends State<FacultyScreen> {
     _controller = FacultyController()..init();
     _titleController = TextEditingController(text: _controller.title);
     _nameController = TextEditingController(text: _controller.facultyName);
+    _roomController = TextEditingController(text: _controller.roomNumber);
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _nameController.dispose();
+    _roomController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -103,6 +106,7 @@ class _FacultyScreenState extends State<FacultyScreen> {
                   controller: _controller,
                   titleController: _titleController,
                   nameController: _nameController,
+                  roomController: _roomController,
                 ),
                 const SizedBox(height: 20),
 

@@ -26,6 +26,7 @@ class FacultyController extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   String title = 'CS101 - Lecture';
   String facultyName = 'Prof. Sharma';
+  String roomNumber = 'LH-1';
   double radiusMeters = 30.0;
   int durationMinutes = 5;
   bool directionalMode = false;
@@ -148,6 +149,10 @@ class FacultyController extends ChangeNotifier {
 
   void setTitle(String val) => title = val;
   void setFacultyName(String val) => facultyName = val;
+  void setRoomNumber(String val) {
+    roomNumber = val;
+    notifyListeners();
+  }
 
   void setRadius(double val) {
     radiusMeters = val.clamp(5.0, 60.0);
@@ -175,6 +180,32 @@ class FacultyController extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
+  // 24-Byte BLE Payload Helpers
+  // ---------------------------------------------------------------------------
+
+  String get formattedCourseCode {
+    final clean = title.trim();
+    if (clean.isEmpty) return 'CLASS';
+    return clean.length <= 6 ? clean : clean.substring(0, 6);
+  }
+
+  String get formattedFacultyInitials {
+    final clean = facultyName.trim();
+    if (clean.isEmpty) return 'FAC';
+    final parts =
+        clean.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length >= 3) {
+      return '${parts[0][0]}${parts[1][0]}${parts[2][0]}'.toUpperCase();
+    } else if (parts.length == 2) {
+      return '${parts[0][0]}${parts[1][0]}'.padRight(3, ' ').toUpperCase();
+    } else {
+      return clean.length <= 3
+          ? clean.padRight(3, ' ').toUpperCase()
+          : clean.substring(0, 3).toUpperCase();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Session Control
   // ---------------------------------------------------------------------------
 
@@ -193,8 +224,19 @@ class FacultyController extends ChangeNotifier {
 
     try {
       final bleUuid = _generateUuid();
-      // 1. Start BLE advertising first (generates initial code)
-      await _bleAdvertiser.startAdvertising(bleUuid);
+      final flags = (directionalMode ? 0x04 : 0x00) | 0x01; // active + directional flag
+
+      // 1. Start BLE advertising first with full 24-byte payload metadata
+      await _bleAdvertiser.startAdvertising(
+        bleUuid,
+        allowedRadius: radiusMeters.toInt(),
+        calibratedTxPower: -59,
+        remainingMinutes: durationMinutes,
+        sessionFlags: flags,
+        courseCode: formattedCourseCode,
+        roomNumber: roomNumber.trim().isEmpty ? 'LH-1' : roomNumber.trim(),
+        facultyInitials: formattedFacultyInitials,
+      );
       bleCurrentCode = _bleAdvertiser.currentCode;
 
       final now = DateTime.now();
@@ -212,6 +254,7 @@ class FacultyController extends ChangeNotifier {
         frontSectorDegrees: directionalMode ? sectorDegrees : 360.0,
         bleSessionUuid: bleUuid,
         currentBleCode: bleCurrentCode,
+        roomNumber: roomNumber.trim().isEmpty ? 'LH-1' : roomNumber.trim(),
       );
 
       // 2. Set activeSession locally immediately so the session starts even if completely offline!

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'ble_advertiser_service.dart';
@@ -9,12 +10,48 @@ class BleBeaconResult {
   final int code; // 2-digit number embedded in the packet
   final int rssi; // received signal strength (negative dBm)
   final String uuid; // parsed session UUID
+  final int sessionTag;
+  final int allowedRadius;
+  final int calibratedTxPower;
+  final int remainingMinutes;
+  final int sessionFlags;
+  final String courseCode;
+  final String roomNumber;
+  final String facultyInitials;
+  final int checksum;
+  final bool isCrcValid;
+  final bool isLegacy;
 
   const BleBeaconResult({
     required this.code,
     required this.rssi,
     required this.uuid,
+    this.sessionTag = 0,
+    this.allowedRadius = 30,
+    this.calibratedTxPower = -59,
+    this.remainingMinutes = 60,
+    this.sessionFlags = 0x01,
+    this.courseCode = 'CLASS',
+    this.roomNumber = 'LH-1',
+    this.facultyInitials = 'FAC',
+    this.checksum = 0,
+    this.isCrcValid = true,
+    this.isLegacy = false,
   });
+
+  /// Calculates distance in meters directly using the packet's calibrated TxPower!
+  double get estimatedMeters {
+    if (rssi == 0) return -1.0;
+    final ratio = (calibratedTxPower - rssi) / (10.0 * 2.2);
+    return math.pow(10.0, ratio).toDouble();
+  }
+
+  /// Whether student device is within the faculty's broadcast allowed proximity.
+  bool get isWithinRadius {
+    final m = estimatedMeters;
+    if (m < 0) return true;
+    return m <= allowedRadius;
+  }
 }
 
 /// Student-side BLE scanner.
@@ -180,9 +217,9 @@ class BleScannerService {
       payload = mfData[0xAAFF];
     }
     if (payload == null || payload.isEmpty) {
-      // Fallback: Check any manufacturer data entry of 5 bytes
+      // Fallback: Check any manufacturer data entry of 24 bytes (or 5 bytes)
       for (final entry in mfData.entries) {
-        if (entry.value.length == 5) {
+        if (entry.value.length >= 24 || entry.value.length == 5) {
           payload = entry.value;
           break;
         }
@@ -191,20 +228,30 @@ class BleScannerService {
 
     if (payload == null || payload.length < 5) return;
 
-    final sessionTag = BleAdvertiserService.parseSessionTag(payload);
-    final code = BleAdvertiserService.parseCode(payload);
-    if (sessionTag == null || code == null) return;
+    final parsed = BleAdvertiserService.parsePayload(payload);
+    if (parsed == null) return;
 
     // Filter by target session tag if specified
-    if (_targetSessionTag != null && _targetSessionTag != sessionTag) {
+    if (_targetSessionTag != null && _targetSessionTag != parsed.sessionTag) {
       return; // different session
     }
 
-    final hexTag = sessionTag.toRadixString(16).padLeft(8, '0');
+    final hexTag = parsed.sessionTag.toRadixString(16).padLeft(8, '0');
     final beaconResult = BleBeaconResult(
-      code: code,
+      code: parsed.code,
       rssi: result.rssi,
       uuid: _targetUuid.isNotEmpty ? _targetUuid : 'session-$hexTag',
+      sessionTag: parsed.sessionTag,
+      allowedRadius: parsed.allowedRadius,
+      calibratedTxPower: parsed.calibratedTxPower,
+      remainingMinutes: parsed.remainingMinutes,
+      sessionFlags: parsed.sessionFlags,
+      courseCode: parsed.courseCode,
+      roomNumber: parsed.roomNumber,
+      facultyInitials: parsed.facultyInitials,
+      checksum: parsed.checksum,
+      isCrcValid: parsed.isCrcValid,
+      isLegacy: parsed.isLegacy,
     );
 
     _lastResult = beaconResult;
@@ -213,7 +260,7 @@ class BleScannerService {
     }
 
     debugPrint(
-      'BleScannerService: beacon detected — code=$code, tag=0x$hexTag, rssi=${result.rssi}',
+      'BleScannerService: beacon detected — code=${parsed.code}, tag=0x$hexTag, dist=~${beaconResult.estimatedMeters.toStringAsFixed(1)}m (max: ${parsed.allowedRadius}m), room=${parsed.roomNumber}, crc=${parsed.isCrcValid}',
     );
   }
 }

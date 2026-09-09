@@ -93,6 +93,25 @@ class DistanceMeterCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+            if (controller.detectedBeacon != null) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'BLE Radio Proximity: ~${controller.detectedBeacon!.estimatedMeters.toStringAsFixed(1)} m • ${controller.detectedBeacon!.courseCode} (${controller.detectedBeacon!.roomNumber})',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ]),
           const SizedBox(height: 16),
 

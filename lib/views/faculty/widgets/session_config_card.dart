@@ -8,12 +8,14 @@ class SessionConfigCard extends StatelessWidget {
   final FacultyController controller;
   final TextEditingController titleController;
   final TextEditingController nameController;
+  final TextEditingController? roomController;
 
   const SessionConfigCard({
     super.key,
     required this.controller,
     required this.titleController,
     required this.nameController,
+    this.roomController,
   });
 
   String _sectorDescription(double deg) {
@@ -49,25 +51,48 @@ class SessionConfigCard extends StatelessWidget {
             ]),
             const Divider(height: 24),
 
-            // Class Title & Faculty Name
+            // Class Title
             TextField(
               controller: titleController,
               onChanged: controller.setTitle,
               decoration: const InputDecoration(
-                labelText: 'Class / Session Title',
+                labelText: 'Class / Session Title (e.g. CS101)',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.class_rounded),
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: nameController,
-              onChanged: controller.setFacultyName,
-              decoration: const InputDecoration(
-                labelText: 'Faculty Name',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person_rounded),
-              ),
+
+            // Faculty Name & Room / Hall
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: nameController,
+                    onChanged: controller.setFacultyName,
+                    decoration: const InputDecoration(
+                      labelText: 'Faculty Name',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: roomController,
+                    onChanged: controller.setRoomNumber,
+                    decoration: const InputDecoration(
+                      labelText: 'Room / Hall',
+                      hintText: 'LH-1',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.meeting_room_rounded),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
 
