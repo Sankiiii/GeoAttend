@@ -224,13 +224,13 @@ class _FacultyScreenState extends State<FacultyScreen> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Rotates in ${secondsLeft}s',
+                  'Rotates in ${secondsLeft ~/ 60}:${(secondsLeft % 60).toString().padLeft(2, '0')}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,

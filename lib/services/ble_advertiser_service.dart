@@ -17,8 +17,8 @@ class BleAdvertiserService {
   /// Manufacturer ID used in the BLE packet.
   static const int _manufacturerId = 0xFFAA;
 
-  /// Seconds between automatic code rotations.
-  static const int rotationSeconds = 45;
+  /// Seconds between automatic code rotations (2 minutes).
+  static const int rotationSeconds = 120;
 
   // ---------------------------------------------------------------------------
   // State
