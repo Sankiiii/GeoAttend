@@ -74,7 +74,9 @@ class FacultyController extends ChangeNotifier {
 
   void _subscribeFirebase() {
     _sessionSub = _firebaseService.activeSessionStream.listen((session) {
-      activeSession = session;
+      if (session != null) {
+        activeSession = session;
+      }
       notifyListeners();
     });
 
@@ -102,7 +104,7 @@ class FacultyController extends ChangeNotifier {
     _bleCodeSub = _bleAdvertiser.codeStream.listen((code) {
       bleCurrentCode = code;
       if (activeSession != null && activeSession!.isActive && !activeSession!.isExpired) {
-        _firebaseService.updateCurrentBleCode(code);
+        _firebaseService.updateCurrentBleCode(code).catchError((_) {});
       }
       notifyListeners();
     });
@@ -212,8 +214,19 @@ class FacultyController extends ChangeNotifier {
         currentBleCode: bleCurrentCode,
       );
 
-      // 2. Write session to Firebase (students will pick it up)
-      await _firebaseService.createSession(session);
+      // 2. Set activeSession locally immediately so the session starts even if completely offline!
+      activeSession = session;
+      notifyListeners();
+
+      // 3. Sync to Firebase in the background without blocking the UI
+      _firebaseService.createSession(session).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint('FacultyController: Firebase createSession timed out, continuing in offline BLE mode');
+        },
+      ).catchError((e) {
+        debugPrint('FacultyController: Firebase createSession offline fallback: $e');
+      });
 
       debugPrint('FacultyController: session started, BLE UUID=$bleUuid, code=$bleCurrentCode');
     } finally {
@@ -223,7 +236,11 @@ class FacultyController extends ChangeNotifier {
   }
 
   Future<void> endSession() async {
-    await _firebaseService.endSession();
+    activeSession = null;
+    notifyListeners();
+    _firebaseService.endSession().catchError((e) {
+      debugPrint('FacultyController: Firebase endSession offline fallback: $e');
+    });
     await _bleAdvertiser.stopAdvertising();
     notifyListeners();
   }
