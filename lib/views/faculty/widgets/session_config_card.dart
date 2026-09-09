@@ -91,12 +91,27 @@ class SessionConfigCard extends StatelessWidget {
               ),
             ]),
             Slider(
-              value: controller.radiusMeters,
-              min: 10,
-              max: 200,
-              divisions: 38,
+              value: controller.radiusMeters.clamp(5.0, 60.0),
+              min: 5,
+              max: 60,
+              divisions: 11,
+              label: '${controller.radiusMeters.toInt()} m',
               onChanged: controller.setRadius,
             ),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [5, 15, 30, 45, 60].map((m) {
+                final selected = controller.radiusMeters.toInt() == m;
+                return ChoiceChip(
+                  label: Text(m == 60 ? '60m (Max)' : '${m}m'),
+                  selected: selected,
+                  visualDensity: VisualDensity.compact,
+                  onSelected: (_) => controller.setRadius(m.toDouble()),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
 
             // Session Duration Slider
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [

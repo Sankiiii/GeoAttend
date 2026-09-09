@@ -150,7 +150,7 @@ class FacultyController extends ChangeNotifier {
   void setFacultyName(String val) => facultyName = val;
 
   void setRadius(double val) {
-    radiusMeters = val;
+    radiusMeters = val.clamp(5.0, 60.0);
     notifyListeners();
   }
 
