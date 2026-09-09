@@ -9,6 +9,7 @@ import 'widgets/verification_badges.dart';
 import 'widgets/demo_tools_card.dart';
 import 'widgets/number_challenge_card.dart';
 import 'widgets/sync_status_card.dart';
+import 'widgets/nearby_beacons_card.dart';
 
 class StudentScreen extends StatefulWidget {
   const StudentScreen({super.key});
@@ -176,7 +177,15 @@ class _StudentScreenState extends State<StudentScreen> {
                 _buildSessionBanner(session, cs),
                 const SizedBox(height: 10),
 
+                if (isSessionActive) ...[
+                  _buildCountdownBanner(session),
+                  const SizedBox(height: 10),
+                ],
+
                 const SyncStatusCard(),
+                const SizedBox(height: 14),
+
+                NearbyBeaconsCard(controller: _controller),
                 const SizedBox(height: 14),
 
                 _buildIdentityCard(cs),
@@ -613,44 +622,139 @@ class _StudentScreenState extends State<StudentScreen> {
     return const SizedBox.shrink();
   }
 
+  Widget _buildCountdownBanner(AttendanceSession s) {
+    final remaining = s.remainingTime;
+    final totalSeconds = s.endTime.difference(s.startTime).inSeconds;
+    final remainingSeconds = remaining.inSeconds.clamp(0, totalSeconds > 0 ? totalSeconds : 1);
+    final progress = totalSeconds > 0 ? remainingSeconds / totalSeconds : 0.0;
+    final isUrgent = remaining.inMinutes < 2;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isUrgent ? Colors.red.shade50 : Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isUrgent ? Colors.red.shade300 : Colors.indigo.shade200,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.alarm_rounded,
+                color: isUrgent ? Colors.red.shade700 : Colors.indigo.shade700,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Session Countdown Timer',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isUrgent ? Colors.red.shade900 : Colors.indigo.shade900,
+                      ),
+                    ),
+                    Text(
+                      '${GeoUtils.formatDuration(remaining)} left to mark attendance',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: isUrgent ? Colors.red.shade700 : Colors.indigo.shade900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isUrgent ? Colors.red.shade100 : Colors.indigo.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${s.endTime.difference(s.startTime).inMinutes}m total',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: isUrgent ? Colors.red.shade800 : Colors.indigo.shade900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              backgroundColor: isUrgent ? Colors.red.shade100 : Colors.indigo.shade100,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isUrgent ? Colors.red.shade600 : Colors.indigo.shade700,
+              ),
+              minHeight: 5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSubmittedNotice() {
+    final isOffline = _controller.wasSubmittedOffline;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.07),
+        color: isOffline
+            ? Colors.amber.withOpacity(0.08)
+            : Colors.green.withOpacity(0.07),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.shade400, width: 1.5),
+        border: Border.all(
+          color: isOffline ? Colors.amber.shade400 : Colors.green.shade400,
+          width: 1.5,
+        ),
       ),
       child: Row(children: [
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.green.shade100,
+            color: isOffline ? Colors.amber.shade100 : Colors.green.shade100,
             shape: BoxShape.circle,
           ),
           child: Icon(
-            Icons.cloud_done_rounded,
-            color: Colors.green.shade700,
+            isOffline ? Icons.phone_android_rounded : Icons.cloud_done_rounded,
+            color: isOffline ? Colors.amber.shade800 : Colors.green.shade700,
             size: 24,
           ),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Attendance Submitted!',
+                isOffline
+                    ? '📱 Stored Offline on Device'
+                    : 'Attendance Submitted & Synced! ✅',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.green,
+                  color: isOffline ? Colors.amber.shade900 : Colors.green,
                   fontSize: 14,
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 2),
               Text(
-                'Open the Faculty Panel on the other phone to see your record appear live.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                isOffline
+                    ? 'Verified locally via BLE! Stored safely on phone and will automatically push to cloud when connected.'
+                    : 'Open the Faculty Panel on the other phone to see your record appear live.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),
             ],
           ),

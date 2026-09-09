@@ -74,6 +74,49 @@ class SubmissionCard extends StatelessWidget {
                 ),
               ),
               _buildBadge(record.status),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert_rounded, size: 20, color: Colors.grey),
+                tooltip: 'Faculty Override',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onSelected: (val) {
+                  if (val == 'approve') {
+                    onReview(
+                      record.id,
+                      AttendanceStatus.manuallyApproved,
+                      'Force-approved by faculty override',
+                    );
+                  } else if (val == 'reject') {
+                    onReview(
+                      record.id,
+                      AttendanceStatus.manuallyRejected,
+                      'Force-rejected by faculty override',
+                    );
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'approve',
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 18),
+                        SizedBox(width: 8),
+                        Text('Force Approve (Override)'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'reject',
+                    child: Row(
+                      children: [
+                        Icon(Icons.highlight_off_rounded, color: Colors.red, size: 18),
+                        SizedBox(width: 8),
+                        Text('Force Reject (Override)'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ]),
             const SizedBox(height: 10),
 

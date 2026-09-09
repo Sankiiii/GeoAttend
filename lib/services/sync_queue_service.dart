@@ -52,6 +52,9 @@ class SyncQueueService {
   final ValueNotifier<int> pendingCountNotifier = ValueNotifier<int>(0);
   final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
 
+  /// Number of attendance records currently awaiting internet synchronization.
+  int get pendingCount => pendingCountNotifier.value;
+
   Timer? _periodicSyncTimer;
   StreamSubscription<bool>? _connectionSub;
   bool _initialized = false;

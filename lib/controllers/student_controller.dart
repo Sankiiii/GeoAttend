@@ -38,6 +38,7 @@ class StudentController extends ChangeNotifier {
 
   // Layer 1: BLE & Number Challenge State
   BleBeaconResult? detectedBeacon;
+  List<BleBeaconResult> nearbyBeacons = [];
   bool isScanningBle = false;
   bool numberChallengeVerified = false;
   int? verifiedCode;
@@ -51,15 +52,26 @@ class StudentController extends ChangeNotifier {
   StreamSubscription<AttendanceSession?>? _sessionSub;
   StreamSubscription<Position>? _positionSub;
   StreamSubscription<BleBeaconResult?>? _bleSub;
+  StreamSubscription<List<BleBeaconResult>>? _nearbyBeaconsSub;
+  Timer? _ticker;
 
   void init() {
     _startGpsStream();
     _subscribeSession();
     _subscribeBleScanner();
+    _startTicker();
     // Proactively start BLE scan immediately for physical offline detection
     _bleScanner.startScanning('');
     isScanningBle = true;
     SyncQueueService().init();
+  }
+
+  void _startTicker() {
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (activeSession != null && activeSession!.isActive) {
+        notifyListeners();
+      }
+    });
   }
 
   void _subscribeSession() {
@@ -95,6 +107,11 @@ class StudentController extends ChangeNotifier {
           _updateChallengeOptions(result.code);
         }
       }
+      notifyListeners();
+    });
+
+    _nearbyBeaconsSub = _bleScanner.nearbyBeaconsStream.listen((beacons) {
+      nearbyBeacons = beacons;
       notifyListeners();
     });
   }
@@ -196,6 +213,31 @@ class StudentController extends ChangeNotifier {
 
   int? get activeBeaconRssi =>
       simulateBeaconFound ? -62 : detectedBeacon?.rssi;
+
+  /// Estimated distance in meters based on BLE signal strength (works offline).
+  double? get estimatedBleDistanceMeters {
+    if (detectedBeacon != null) {
+      return detectedBeacon!.estimatedDistanceMeters;
+    } else if (simulateBeaconFound) {
+      return 2.4;
+    }
+    return null;
+  }
+
+  /// Friendly signal quality label (e.g. "Strong", "Moderate").
+  String? get bleSignalQuality {
+    final rssi = activeBeaconRssi;
+    if (rssi != null) {
+      return GeoUtils.rssiToSignalQuality(rssi);
+    }
+    return null;
+  }
+
+  /// Number of records currently queued locally pending internet sync.
+  int get offlinePendingCount => SyncQueueService().pendingCount;
+
+  /// Manually triggers synchronization of queued offline attendance records to Firebase.
+  Future<int> syncOfflineQueueNow() => SyncQueueService().syncAllPending();
 
   bool get isReadyToMark {
     final hasSession = activeSession != null &&
@@ -417,9 +459,11 @@ class StudentController extends ChangeNotifier {
   @override
   void dispose() {
     _isDisposed = true;
+    _ticker?.cancel();
     _sessionSub?.cancel();
     _positionSub?.cancel();
     _bleSub?.cancel();
+    _nearbyBeaconsSub?.cancel();
     _bleScanner.dispose();
     super.dispose();
   }

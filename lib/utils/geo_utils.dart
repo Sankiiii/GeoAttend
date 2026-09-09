@@ -43,4 +43,28 @@ class GeoUtils {
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
   }
+
+  /// Converts BLE RSSI into an estimated physical distance in meters using the
+  /// Log-Distance Path Loss model: distance = 10 ^ ((txPower - rssi) / (10 * n))
+  static double rssiToEstimatedMeters(
+    int rssi, {
+    int txPower = -59,
+    double pathLossExponent = 2.2,
+  }) {
+    if (rssi == 0) return -1.0;
+    final ratio = (txPower - rssi) / (10.0 * pathLossExponent);
+    final distance = math.pow(10.0, ratio).toDouble();
+    if (distance < 0.1) return 0.1;
+    if (distance > 60.0) return 60.0;
+    return double.parse(distance.toStringAsFixed(1));
+  }
+
+  /// Returns a friendly label for the BLE signal quality.
+  static String rssiToSignalQuality(int rssi) {
+    if (rssi >= -60) return 'Very Strong';
+    if (rssi >= -70) return 'Strong';
+    if (rssi >= -80) return 'Moderate';
+    if (rssi >= -90) return 'Weak';
+    return 'Very Weak';
+  }
 }

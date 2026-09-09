@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import '../utils/geo_utils.dart';
 import 'ble_advertiser_service.dart';
 import 'permission_service.dart';
 
@@ -8,12 +9,18 @@ import 'permission_service.dart';
 class BleBeaconResult {
   final int code; // 2-digit number embedded in the packet
   final int rssi; // received signal strength (negative dBm)
-  final String uuid; // parsed session UUID
+  final String uuid; // parsed session UUID or formatted tag
+  final String? courseTag; // e.g. "CS101"
+  final double estimatedDistanceMeters; // estimated distance from RSSI
+  final DateTime lastSeen;
 
   const BleBeaconResult({
     required this.code,
     required this.rssi,
     required this.uuid,
+    this.courseTag,
+    required this.estimatedDistanceMeters,
+    required this.lastSeen,
   });
 }
 
@@ -31,6 +38,10 @@ class BleScannerService {
 
   final StreamController<BleBeaconResult?> _resultController =
       StreamController<BleBeaconResult?>.broadcast();
+  final StreamController<List<BleBeaconResult>> _nearbyBeaconsController =
+      StreamController<List<BleBeaconResult>>.broadcast();
+
+  final Map<int, BleBeaconResult> _discoveredBeacons = {};
 
   StreamSubscription<List<ScanResult>>? _scanSub;
   StreamSubscription<bool>? _isScanningSub;
@@ -47,6 +58,13 @@ class BleScannerService {
 
   /// Stream of the latest parsed beacon result (null when not detected).
   Stream<BleBeaconResult?> get resultStream => _resultController.stream;
+
+  /// Stream of all active nearby beacons detected in the environment.
+  Stream<List<BleBeaconResult>> get nearbyBeaconsStream =>
+      _nearbyBeaconsController.stream;
+
+  /// List of currently discovered nearby beacons.
+  List<BleBeaconResult> get nearbyBeacons => _discoveredBeacons.values.toList();
 
   /// Whether a scan is currently active.
   bool get isScanning => _isScanning;
@@ -140,8 +158,12 @@ class BleScannerService {
     }
 
     _lastResult = null;
+    _discoveredBeacons.clear();
     if (!_isDisposed && !_resultController.isClosed) {
       _resultController.add(null);
+    }
+    if (!_isDisposed && !_nearbyBeaconsController.isClosed) {
+      _nearbyBeaconsController.add([]);
     }
   }
 
@@ -162,6 +184,9 @@ class BleScannerService {
     if (!_resultController.isClosed) {
       _resultController.close();
     }
+    if (!_nearbyBeaconsController.isClosed) {
+      _nearbyBeaconsController.close();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -180,9 +205,9 @@ class BleScannerService {
       payload = mfData[0xAAFF];
     }
     if (payload == null || payload.isEmpty) {
-      // Fallback: Check any manufacturer data entry of 5 bytes
+      // Fallback: Check any manufacturer data entry of 5 to 16 bytes
       for (final entry in mfData.entries) {
-        if (entry.value.length == 5) {
+        if (entry.value.length >= 5 && entry.value.length <= 16) {
           payload = entry.value;
           break;
         }
@@ -195,17 +220,28 @@ class BleScannerService {
     final code = BleAdvertiserService.parseCode(payload);
     if (sessionTag == null || code == null) return;
 
-    // Filter by target session tag if specified
-    if (_targetSessionTag != null && _targetSessionTag != sessionTag) {
-      return; // different session
-    }
-
+    final courseTag = BleAdvertiserService.parseCourseTag(payload);
     final hexTag = sessionTag.toRadixString(16).padLeft(8, '0');
+    final estimatedDist = GeoUtils.rssiToEstimatedMeters(result.rssi);
+
     final beaconResult = BleBeaconResult(
       code: code,
       rssi: result.rssi,
       uuid: _targetUuid.isNotEmpty ? _targetUuid : 'session-$hexTag',
+      courseTag: courseTag,
+      estimatedDistanceMeters: estimatedDist,
+      lastSeen: DateTime.now(),
     );
+
+    _discoveredBeacons[sessionTag] = beaconResult;
+    if (!_isDisposed && !_nearbyBeaconsController.isClosed) {
+      _nearbyBeaconsController.add(_discoveredBeacons.values.toList());
+    }
+
+    // Filter by target session tag if specified
+    if (_targetSessionTag != null && _targetSessionTag != sessionTag) {
+      return; // different session
+    }
 
     _lastResult = beaconResult;
     if (!_isDisposed && !_resultController.isClosed) {
@@ -213,7 +249,7 @@ class BleScannerService {
     }
 
     debugPrint(
-      'BleScannerService: beacon detected — code=$code, tag=0x$hexTag, rssi=${result.rssi}',
+      'BleScannerService: beacon detected — code=$code, tag=0x$hexTag, course=$courseTag, dist=${estimatedDist}m, rssi=${result.rssi}',
     );
   }
 }

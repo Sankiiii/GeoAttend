@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../controllers/faculty_controller.dart';
 import '../../models/attendance_session.dart';
+import '../../services/ble_advertiser_service.dart';
 import '../../utils/geo_utils.dart';
 import '../role_selector_screen.dart';
 import 'widgets/session_config_card.dart';
@@ -224,13 +225,13 @@ class _FacultyScreenState extends State<FacultyScreen> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Rotates in ${secondsLeft}s',
+                  'Rotates in ${secondsLeft ~/ 60}:${(secondsLeft % 60).toString().padLeft(2, '0')}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,
@@ -240,6 +241,17 @@ class _FacultyScreenState extends State<FacultyScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (secondsLeft / BleAdvertiserService.rotationSeconds).clamp(0.0, 1.0),
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+              minHeight: 4,
+            ),
+          ),
+          const SizedBox(height: 10),
           const SizedBox(height: 12),
           Text(
             codeStr,

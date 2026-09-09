@@ -87,13 +87,50 @@ class DistanceMeterCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'from faculty / classroom',
+              'from faculty classroom pin (GPS)',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.85),
                 fontSize: 12,
               ),
             ),
           ]),
+          if (controller.estimatedBleDistanceMeters != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white.withOpacity(0.35)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.bluetooth_audio_rounded,
+                      color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Direct BLE Radio Range: ~${controller.estimatedBleDistanceMeters!.toStringAsFixed(1)} m',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (controller.bleSignalQuality != null) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      '• ${controller.bleSignalQuality}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Distance Linear Gauge

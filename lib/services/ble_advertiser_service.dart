@@ -17,8 +17,8 @@ class BleAdvertiserService {
   /// Manufacturer ID used in the BLE packet.
   static const int _manufacturerId = 0xFFAA;
 
-  /// Seconds between automatic code rotations.
-  static const int rotationSeconds = 45;
+  /// Seconds between automatic code rotations (2 minutes).
+  static const int rotationSeconds = 120;
 
   // ---------------------------------------------------------------------------
   // State
@@ -40,6 +40,7 @@ class BleAdvertiserService {
   bool _isAdvertising = false;
   bool _isDisposed = false;
   String _sessionUuid = '';
+  String _courseTag = '';
 
   // ---------------------------------------------------------------------------
   // Public streams
@@ -64,8 +65,8 @@ class BleAdvertiserService {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /// Starts BLE advertising for [sessionUuid].
-  Future<void> startAdvertising(String sessionUuid) async {
+  /// Starts BLE advertising for [sessionUuid] and optional [courseTag] (e.g. CS101).
+  Future<void> startAdvertising(String sessionUuid, {String courseTag = ''}) async {
     if (_isDisposed) return;
 
     // Check & request Bluetooth permissions
@@ -75,6 +76,7 @@ class BleAdvertiserService {
     if (_isDisposed) return;
 
     _sessionUuid = sessionUuid;
+    _courseTag = courseTag;
     _generateNewCode();
     await _startBleAdvertising();
     _startRotationTimer();
@@ -141,11 +143,11 @@ class BleAdvertiserService {
   Future<void> _startBleAdvertising() async {
     if (_isDisposed) return;
     try {
-      final payload = buildManufacturerData(_sessionUuid, _currentCode);
+      final payload = buildManufacturerData(_sessionUuid, _currentCode, courseTag: _courseTag);
       final sessionTag = computeSessionTag(_sessionUuid);
 
       debugPrint(
-        'BleAdvertiser: starting advertisement — code: $_currentCode, tag: 0x${sessionTag.toRadixString(16).padLeft(8, '0')}, bytes: $payload',
+        'BleAdvertiser: starting advertisement — code: $_currentCode, tag: 0x${sessionTag.toRadixString(16).padLeft(8, '0')}, course: $_courseTag, bytes: $payload',
       );
 
       await _blePeripheral.start(
@@ -203,9 +205,10 @@ class BleAdvertiserService {
     });
   }
 
-  /// Encodes [uuid] (first 4 bytes hash) and [code] (1 byte) into manufacturer data.
-  /// Total length: exactly 5 bytes (fits comfortably inside the 31-byte legacy BLE limit).
-  static List<int> buildManufacturerData(String uuid, int code) {
+  /// Encodes [uuid] (first 4 bytes hash), [code] (1 byte), and optional [courseTag] (up to 6 ASCII bytes)
+  /// into manufacturer data.
+  /// Total length: 5 to 11 bytes (fits comfortably inside the 31-byte legacy BLE limit).
+  static List<int> buildManufacturerData(String uuid, int code, {String courseTag = ''}) {
     final hexClean = uuid.replaceAll('-', '').toLowerCase();
     final bytes = <int>[];
 
@@ -218,6 +221,14 @@ class BleAdvertiserService {
     }
 
     bytes.add(code & 0xFF);
+
+    if (courseTag.isNotEmpty) {
+      // Limit to 6 ASCII characters to safely keep payload under 11 bytes
+      for (final codeUnit in courseTag.trim().codeUnits.take(6)) {
+        bytes.add(codeUnit & 0xFF);
+      }
+    }
+
     return bytes;
   }
 
@@ -225,6 +236,18 @@ class BleAdvertiserService {
   static int? parseCode(List<int> data) {
     if (data.length < 5) return null;
     return data[4];
+  }
+
+  /// Parses the course tag string from manufacturer data bytes (if present).
+  static String? parseCourseTag(List<int> data) {
+    if (data.length <= 5) return null;
+    final tagBytes = data.sublist(5);
+    try {
+      final str = String.fromCharCodes(tagBytes).trim();
+      return str.isNotEmpty ? str : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Parses the 4-byte session tag from manufacturer data bytes.

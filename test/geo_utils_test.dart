@@ -56,5 +56,34 @@ void main() {
       expect(GeoUtils.headingToLabel(180), equals('S'));
       expect(GeoUtils.headingToLabel(270), equals('W'));
     });
+
+    test('rssiToEstimatedMeters calculates accurate distance from RSSI', () {
+      // 0 RSSI means invalid / no signal
+      expect(GeoUtils.rssiToEstimatedMeters(0), equals(-1.0));
+
+      // At txPower (-59 dBm), distance should be exactly 1.0m
+      final distAt1m = GeoUtils.rssiToEstimatedMeters(-59);
+      expect(distAt1m, equals(1.0));
+
+      // Stronger signal (-50 dBm) -> closer than 1m
+      final distClose = GeoUtils.rssiToEstimatedMeters(-50);
+      expect(distClose < 1.0, isTrue);
+
+      // Weaker signal (-75 dBm) -> further than 1m
+      final distFar = GeoUtils.rssiToEstimatedMeters(-75);
+      expect(distFar > 1.0, isTrue);
+
+      // Clamped within 0.1m and 60.0m
+      expect(GeoUtils.rssiToEstimatedMeters(-20), equals(0.1));
+      expect(GeoUtils.rssiToEstimatedMeters(-120), equals(60.0));
+    });
+
+    test('rssiToSignalQuality provides user-friendly labels', () {
+      expect(GeoUtils.rssiToSignalQuality(-55), equals('Very Strong'));
+      expect(GeoUtils.rssiToSignalQuality(-68), equals('Strong'));
+      expect(GeoUtils.rssiToSignalQuality(-76), equals('Moderate'));
+      expect(GeoUtils.rssiToSignalQuality(-85), equals('Weak'));
+      expect(GeoUtils.rssiToSignalQuality(-95), equals('Very Weak'));
+    });
   });
 }
