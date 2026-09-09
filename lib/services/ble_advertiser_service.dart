@@ -141,14 +141,24 @@ class BleAdvertiserService {
   Future<void> _startBleAdvertising() async {
     if (_isDisposed) return;
     try {
-      final payload = _buildManufacturerData(_sessionUuid, _currentCode);
+      final payload = buildManufacturerData(_sessionUuid, _currentCode);
+      final sessionTag = computeSessionTag(_sessionUuid);
+
+      debugPrint(
+        'BleAdvertiser: starting advertisement — code: $_currentCode, tag: 0x${sessionTag.toRadixString(16).padLeft(8, '0')}, bytes: $payload',
+      );
 
       await _blePeripheral.start(
         advertiseData: AdvertiseDataCore(
-          localName: 'GeoAttend',
-          serviceUuid: _sessionUuid.isNotEmpty ? _sessionUuid : null,
           manufacturerId: _manufacturerId,
           manufacturerData: Uint8List.fromList(payload),
+        ),
+        androidSettings: const AndroidAdvertiseSettings(
+          advertiseSettings: AdvertiseSettings(
+            advertiseMode: AdvertiseMode.advertiseModeLowLatency,
+            txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
+            connectable: false,
+          ),
         ),
       );
 
@@ -156,7 +166,7 @@ class BleAdvertiserService {
       if (!_isDisposed && !_advertisingController.isClosed) {
         _advertisingController.add(true);
       }
-      debugPrint('BleAdvertiser: advertising started');
+      debugPrint('BleAdvertiser: advertising active successfully!');
     } catch (e) {
       debugPrint('BleAdvertiser: startAdvertising error: $e');
       _isAdvertising = false;
@@ -193,19 +203,17 @@ class BleAdvertiserService {
     });
   }
 
-  /// Encodes [uuid] (first 16 bytes) and [code] (1 byte) into manufacturer data.
-  static List<int> _buildManufacturerData(String uuid, int code) {
-    final hexClean = uuid.replaceAll('-', '');
+  /// Encodes [uuid] (first 4 bytes hash) and [code] (1 byte) into manufacturer data.
+  /// Total length: exactly 5 bytes (fits comfortably inside the 31-byte legacy BLE limit).
+  static List<int> buildManufacturerData(String uuid, int code) {
+    final hexClean = uuid.replaceAll('-', '').toLowerCase();
     final bytes = <int>[];
 
-    final length = min(32, hexClean.length);
-    for (int i = 0; i < length; i += 2) {
-      if (i + 1 < hexClean.length) {
-        bytes.add(int.parse(hexClean.substring(i, i + 2), radix: 16));
-      }
+    for (int i = 0; i < 8 && i + 1 < hexClean.length; i += 2) {
+      bytes.add(int.parse(hexClean.substring(i, i + 2), radix: 16));
     }
 
-    while (bytes.length < 16) {
+    while (bytes.length < 4) {
       bytes.add(0);
     }
 
@@ -215,21 +223,26 @@ class BleAdvertiserService {
 
   /// Parses the 2-digit code from manufacturer data bytes.
   static int? parseCode(List<int> data) {
-    if (data.length < 17) return null;
-    return data[16];
+    if (data.length < 5) return null;
+    return data[4];
   }
 
-  /// Parses the session UUID from manufacturer data bytes.
-  static String? parseUuid(List<int> data) {
-    if (data.length < 16) return null;
-    final hex = data
-        .sublist(0, 16)
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
-    return '${hex.substring(0, 8)}-'
-        '${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-'
-        '${hex.substring(16, 20)}-'
-        '${hex.substring(20)}';
+  /// Parses the 4-byte session tag from manufacturer data bytes.
+  static int? parseSessionTag(List<int> data) {
+    if (data.length < 4) return null;
+    return (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+  }
+
+  /// Computes the 4-byte session tag from a session UUID string.
+  static int computeSessionTag(String uuid) {
+    final hexClean = uuid.replaceAll('-', '').toLowerCase();
+    final bytes = <int>[];
+    for (int i = 0; i < 8 && i + 1 < hexClean.length; i += 2) {
+      bytes.add(int.parse(hexClean.substring(i, i + 2), radix: 16));
+    }
+    while (bytes.length < 4) {
+      bytes.add(0);
+    }
+    return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
   }
 }

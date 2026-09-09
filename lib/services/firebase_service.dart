@@ -59,6 +59,15 @@ class FirebaseService {
     await _sessionRef.set(session.toJson());
   }
 
+  /// Updates the current rotating BLE code in the active session.
+  Future<void> updateCurrentBleCode(int code) async {
+    try {
+      await _sessionRef.update({'currentBleCode': code});
+    } catch (e) {
+      debugPrint('Firebase updateCurrentBleCode error: $e');
+    }
+  }
+
   /// Deactivates current session.
   Future<void> endSession() async {
     await _sessionRef.update({'isActive': false});

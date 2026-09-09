@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../controllers/student_controller.dart';
 
-class NumberChallengeCard extends StatelessWidget {
+class NumberChallengeCard extends StatefulWidget {
   final StudentController controller;
 
   const NumberChallengeCard({
@@ -10,8 +10,23 @@ class NumberChallengeCard extends StatelessWidget {
   });
 
   @override
+  State<NumberChallengeCard> createState() => _NumberChallengeCardState();
+}
+
+class _NumberChallengeCardState extends State<NumberChallengeCard> {
+  final TextEditingController _manualInputController = TextEditingController();
+  bool _showManualEntry = false;
+
+  @override
+  void dispose() {
+    _manualInputController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final controller = widget.controller;
     final isDetected = controller.isBeaconActive;
     final isVerified = controller.numberChallengeVerified;
 
@@ -39,13 +54,17 @@ class NumberChallengeCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isVerified
                         ? Colors.green.withOpacity(0.12)
-                        : (isDetected ? cs.primary.withOpacity(0.12) : Colors.grey.withOpacity(0.12)),
+                        : (isDetected
+                            ? cs.primary.withOpacity(0.12)
+                            : Colors.grey.withOpacity(0.12)),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     isVerified
                         ? Icons.verified_rounded
-                        : (isDetected ? Icons.bluetooth_audio_rounded : Icons.bluetooth_searching_rounded),
+                        : (isDetected
+                            ? Icons.bluetooth_audio_rounded
+                            : Icons.bluetooth_searching_rounded),
                     color: isVerified
                         ? Colors.green
                         : (isDetected ? cs.primary : Colors.grey),
@@ -60,22 +79,33 @@ class NumberChallengeCard extends StatelessWidget {
                       Row(
                         children: [
                           const Text(
-                            'Layer 1: BLE Number Challenge',
+                            'Layer 1: BLE Proximity Challenge',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 15,
+                              fontSize: 14,
                             ),
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.blueGrey.withOpacity(0.1),
+                              color: isDetected
+                                  ? Colors.blue.withOpacity(0.12)
+                                  : Colors.blueGrey.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
-                              'Offline',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                            child: Text(
+                              controller.detectedBeacon != null
+                                  ? 'BLE Active'
+                                  : (isDetected ? 'Cloud Sync' : 'Searching'),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isDetected
+                                    ? Colors.blue.shade800
+                                    : Colors.blueGrey,
+                              ),
                             ),
                           ),
                         ],
@@ -90,51 +120,35 @@ class NumberChallengeCard extends StatelessWidget {
                           fontSize: 12,
                           color: isVerified
                               ? Colors.green.shade700
-                              : (isDetected ? cs.primary : Colors.grey.shade600),
+                              : (isDetected
+                                  ? cs.primary
+                                  : Colors.grey.shade600),
                         ),
                       ),
                     ],
                   ),
                 ),
+                if (!isVerified)
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    tooltip: 'Rescan BLE',
+                    onPressed: () {
+                      controller.rescanBle();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Scanning for faculty BLE beacon...'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
               ],
             ),
 
             const SizedBox(height: 14),
 
-            // State 1: Scanning / Not detected yet
-            if (!isDetected) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Searching for active classroom beacon in BLE range...',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ]
-
-            // State 2: Verified Successfully
-            else if (isVerified) ...[
+            // State 1: Verified Successfully
+            if (isVerified) ...[
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -145,7 +159,8 @@ class NumberChallengeCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+                    const Icon(Icons.check_circle_rounded,
+                        color: Colors.green, size: 28),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -160,7 +175,7 @@ class NumberChallengeCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Presence confirmed. Beacon RSSI: ${controller.activeBeaconRssi ?? -60} dBm',
+                            'Presence confirmed. Radio RSSI: ${controller.activeBeaconRssi ?? -60} dBm',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.green.shade800,
@@ -178,11 +193,12 @@ class NumberChallengeCard extends StatelessWidget {
               ),
             ]
 
-            // State 3: Beacon Detected -> 5 Interactive Choices
-            else ...[
+            // State 2: Beacon Detected / Code Available -> 5 Interactive Choices
+            else if (isDetected && controller.challengeOptions.isNotEmpty) ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 decoration: BoxDecoration(
                   color: cs.primary.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(10),
@@ -259,7 +275,107 @@ class NumberChallengeCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.red, size: 16),
+                    const Icon(Icons.error_outline_rounded,
+                        color: Colors.red, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        controller.challengeError!,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ]
+
+            // State 3: Searching for Beacon / Manual Fallback
+            else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Searching for active classroom beacon in BLE range...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _showManualEntry = !_showManualEntry;
+                            });
+                          },
+                          child: Text(
+                            _showManualEntry ? 'Hide' : 'Type Code',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_showManualEntry) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _manualInputController,
+                              keyboardType: TextInputType.number,
+                              maxLength: 2,
+                              decoration: InputDecoration(
+                                hintText: 'Enter 2-digit code',
+                                counterText: '',
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            onPressed: () {
+                              controller.verifyManualCode(
+                                  _manualInputController.text);
+                            },
+                            child: const Text('Verify'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              if (controller.challengeError != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: Colors.red, size: 16),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(

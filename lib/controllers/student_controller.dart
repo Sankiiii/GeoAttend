@@ -56,6 +56,9 @@ class StudentController extends ChangeNotifier {
     _startGpsStream();
     _subscribeSession();
     _subscribeBleScanner();
+    // Proactively start BLE scan immediately for physical offline detection
+    _bleScanner.startScanning('');
+    isScanningBle = true;
     SyncQueueService().init();
   }
 
@@ -68,15 +71,16 @@ class StudentController extends ChangeNotifier {
         if (session.bleSessionUuid.isNotEmpty && session.bleSessionUuid != prevUuid) {
           _bleScanner.startScanning(session.bleSessionUuid);
           isScanningBle = true;
-          // Reset challenge if session changed
-          numberChallengeVerified = false;
-          verifiedCode = null;
-          challengeError = null;
-          challengeOptions.clear();
+        }
+        // Fallback: If session has currentBleCode from Firebase, generate options if empty
+        if (session.currentBleCode != null && !numberChallengeVerified) {
+          _updateChallengeOptions(session.currentBleCode!);
         }
       } else {
-        _bleScanner.stopScanning();
-        isScanningBle = false;
+        // In offline mode or ended session, maintain scan if needed
+        if (detectedBeacon == null && !simulateBeaconFound) {
+          isScanningBle = true;
+        }
       }
       notifyListeners();
     });
@@ -86,14 +90,17 @@ class StudentController extends ChangeNotifier {
     _bleSub = _bleScanner.resultStream.listen((result) {
       detectedBeacon = result;
       if (result != null) {
-        _updateChallengeOptions(result.code);
+        // Do not disrupt verified state if student already matched the code
+        if (!numberChallengeVerified) {
+          _updateChallengeOptions(result.code);
+        }
       }
       notifyListeners();
     });
   }
 
   void _updateChallengeOptions(int correctCode) {
-    if (challengeOptions.contains(correctCode)) return;
+    if (challengeOptions.contains(correctCode) && challengeOptions.length == 5) return;
 
     final rng = Random();
     final Set<int> options = {correctCode};
@@ -176,28 +183,40 @@ class StudentController extends ChangeNotifier {
   bool get isMockDetected =>
       simulateMock || (currentPosition?.isMocked ?? false);
 
+  /// Beacon is active if detected over BLE, simulated, or received via Firebase
   bool get isBeaconActive =>
-      (detectedBeacon != null) || simulateBeaconFound;
+      (detectedBeacon != null) ||
+      simulateBeaconFound ||
+      (activeSession?.currentBleCode != null);
 
   int? get activeBeaconCode =>
-      simulateBeaconFound ? simulatedCode : detectedBeacon?.code;
+      simulateBeaconFound
+          ? simulatedCode
+          : (detectedBeacon?.code ?? activeSession?.currentBleCode);
 
   int? get activeBeaconRssi =>
       simulateBeaconFound ? -62 : detectedBeacon?.rssi;
 
   bool get isReadyToMark {
-    final basicReady = activeSession != null &&
+    final hasSession = activeSession != null &&
         activeSession!.isActive &&
-        !activeSession!.isExpired &&
-        isWithinRadius &&
-        isInFrontSector &&
-        !isMockDetected;
+        !activeSession!.isExpired;
+    final hasOfflineBeacon = (detectedBeacon != null || simulateBeaconFound);
 
-    // If BLE session UUID is enabled on the session, student must pass Layer 1 number challenge
-    if (activeSession != null && activeSession!.bleSessionUuid.isNotEmpty) {
-      return basicReady && numberChallengeVerified;
+    if (!hasSession && !hasOfflineBeacon) return false;
+    if (isMockDetected) return false;
+
+    if (hasSession) {
+      final withinGeo = isWithinRadius && isInFrontSector;
+      if (!withinGeo) return false;
+      if (activeSession!.bleSessionUuid.isNotEmpty || activeSession!.currentBleCode != null) {
+        return numberChallengeVerified;
+      }
+      return true;
     }
-    return basicReady;
+
+    // Offline mode: passing the number challenge proves physical presence
+    return numberChallengeVerified;
   }
 
   void setStudentDetails({required String name, required String roll}) {
@@ -220,7 +239,7 @@ class StudentController extends ChangeNotifier {
     if (val) {
       _updateChallengeOptions(simulatedCode);
     } else {
-      if (detectedBeacon == null) {
+      if (detectedBeacon == null && activeSession?.currentBleCode == null) {
         challengeOptions.clear();
         numberChallengeVerified = false;
         verifiedCode = null;
@@ -229,11 +248,19 @@ class StudentController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Restarts BLE scan for troubleshooting or reconnection
+  Future<void> rescanBle() async {
+    isScanningBle = true;
+    notifyListeners();
+    await _bleScanner.startScanning(activeSession?.bleSessionUuid ?? '');
+    notifyListeners();
+  }
+
   /// Verifies if student selected the right code broadcast by the faculty
   bool verifyNumberChallenge(int selectedNumber) {
     final targetCode = activeBeaconCode;
     if (targetCode == null) {
-      challengeError = 'No beacon detected yet.';
+      challengeError = 'No beacon detected yet. Tap Rescan or wait.';
       notifyListeners();
       return false;
     }
@@ -252,6 +279,23 @@ class StudentController extends ChangeNotifier {
     }
   }
 
+  /// Verifies manually typed 2-digit number
+  bool verifyManualCode(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      challengeError = 'Please enter a 2-digit number.';
+      notifyListeners();
+      return false;
+    }
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null) {
+      challengeError = 'Please enter valid digits.';
+      notifyListeners();
+      return false;
+    }
+    return verifyNumberChallenge(parsed);
+  }
+
   void resetChallenge() {
     numberChallengeVerified = false;
     verifiedCode = null;
@@ -266,16 +310,18 @@ class StudentController extends ChangeNotifier {
     if (studentName.trim().isEmpty || rollNo.trim().isEmpty) {
       throw Exception('Please fill in your Full Name and Roll Number.');
     }
-    if (activeSession == null || !activeSession!.isActive) {
-      throw Exception('No active attendance session found.');
-    }
-    if (activeSession!.isExpired) {
-      throw Exception('The session has already expired.');
-    }
     if (currentPosition == null) {
       throw Exception('Waiting for GPS coordinates.');
     }
-    if (activeSession!.bleSessionUuid.isNotEmpty && !numberChallengeVerified) {
+
+    final hasCloudSession = activeSession != null && activeSession!.isActive && !activeSession!.isExpired;
+    final hasBeacon = isBeaconActive;
+
+    if (!hasCloudSession && !hasBeacon) {
+      throw Exception('No active attendance session found.');
+    }
+
+    if (hasBeacon && !numberChallengeVerified) {
       throw Exception('Please complete the BLE Number Challenge first.');
     }
 
@@ -283,7 +329,19 @@ class StudentController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final s = activeSession!;
+      final s = activeSession ??
+          AttendanceSession(
+            title: 'Classroom Lecture (Offline BLE)',
+            facultyName: 'Faculty',
+            facultyLat: currentPosition!.latitude,
+            facultyLng: currentPosition!.longitude,
+            radiusMeters: 50.0,
+            startTime: DateTime.now(),
+            endTime: DateTime.now().add(const Duration(minutes: 30)),
+            isActive: true,
+            bleSessionUuid: detectedBeacon?.uuid ?? 'offline-ble-session',
+          );
+
       final dist = distanceMeters;
       final bear = bearingDegrees;
       final inSector = isInFrontSector;
@@ -296,11 +354,11 @@ class StudentController extends ChangeNotifier {
       if (mock) {
         status = AttendanceStatus.flaggedMockLocation;
         remark = 'Mock / Fake GPS detected on student device!';
-      } else if (!withinR) {
+      } else if (hasCloudSession && !withinR) {
         status = AttendanceStatus.rejectedOutsideRadius;
         remark =
             'Outside radius: ${dist.toStringAsFixed(1)}m > ${s.radiusMeters.toInt()}m allowed.';
-      } else if (s.directionalModeEnabled && !inSector) {
+      } else if (hasCloudSession && s.directionalModeEnabled && !inSector) {
         status = AttendanceStatus.rejectedBehindFaculty;
         remark =
             'Student is behind teacher (bearing ${bear.toStringAsFixed(0)}°, allowed front zone: ±${(s.frontSectorDegrees / 2).toStringAsFixed(0)}°).';

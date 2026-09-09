@@ -182,12 +182,15 @@ class _StudentScreenState extends State<StudentScreen> {
                 _buildIdentityCard(cs),
                 const SizedBox(height: 14),
 
-                if (isSessionActive) ...[
-                  if (session.bleSessionUuid.isNotEmpty || _controller.simulateBeaconFound) ...[
-                    NumberChallengeCard(controller: _controller),
-                    const SizedBox(height: 12),
-                  ],
+                // Layer 1: Number Challenge Card (Always visible when session is active or beacon is detected)
+                if (isSessionActive ||
+                    _controller.isBeaconActive ||
+                    _controller.simulateBeaconFound) ...[
+                  NumberChallengeCard(controller: _controller),
+                  const SizedBox(height: 12),
+                ],
 
+                if (isSessionActive) ...[
                   DistanceMeterCard(
                     controller: _controller,
                     session: session,
@@ -199,10 +202,10 @@ class _StudentScreenState extends State<StudentScreen> {
                     session: session,
                   ),
                   const SizedBox(height: 8),
-
-                  _buildGpsCoordinatesBox(cs),
-                  const SizedBox(height: 14),
                 ],
+
+                _buildGpsCoordinatesBox(cs),
+                const SizedBox(height: 14),
 
                 if (_controller.hasSubmitted) ...[
                   _buildSubmittedNotice(),
@@ -282,6 +285,60 @@ class _StudentScreenState extends State<StudentScreen> {
 
   Widget _buildSessionBanner(AttendanceSession? s, ColorScheme cs) {
     if (s == null) {
+      if (_controller.isBeaconActive) {
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.indigo.shade700, Colors.blue.shade600],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.bluetooth_connected_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Classroom Beacon Detected (Offline)',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Direct BLE radio active. Tap the announced code to mark attendance locally.',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        );
+      }
+
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -306,7 +363,7 @@ class _StudentScreenState extends State<StudentScreen> {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  'The faculty must start a session on their device first.',
+                  'Searching for teacher\'s BLE radio or cloud session...',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],

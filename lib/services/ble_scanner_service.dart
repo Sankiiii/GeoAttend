@@ -39,6 +39,8 @@ class BleScannerService {
   String _targetUuid = '';
   BleBeaconResult? _lastResult;
 
+  int? _targetSessionTag;
+
   // ---------------------------------------------------------------------------
   // Public streams / getters
   // ---------------------------------------------------------------------------
@@ -60,7 +62,7 @@ class BleScannerService {
   // ---------------------------------------------------------------------------
 
   /// Starts scanning for the faculty beacon.
-  /// If [sessionUuid] is provided, matches against that UUID; otherwise detects any GeoAttend beacon.
+  /// If [sessionUuid] is provided, matches against that session tag; otherwise detects any GeoAttend beacon.
   Future<void> startScanning(String sessionUuid) async {
     if (_isDisposed) return;
 
@@ -70,7 +72,12 @@ class BleScannerService {
     await stopScanning();
     if (_isDisposed) return;
 
-    _targetUuid = sessionUuid.replaceAll('-', '').toLowerCase();
+    _targetUuid = sessionUuid;
+    if (sessionUuid.isNotEmpty) {
+      _targetSessionTag = BleAdvertiserService.computeSessionTag(sessionUuid);
+    } else {
+      _targetSessionTag = null;
+    }
     _lastResult = null;
 
     try {
@@ -102,11 +109,18 @@ class BleScannerService {
         }
       });
 
-      debugPrint('BleScannerService: scan started for UUID $_targetUuid');
+      debugPrint(
+        'BleScannerService: scan started (targetTag: ${_targetSessionTag != null ? "0x${_targetSessionTag!.toRadixString(16).padLeft(8, '0')}" : "ANY"})',
+      );
     } catch (e) {
       debugPrint('BleScannerService: startScan error: $e');
       _isScanning = false;
     }
+  }
+
+  /// Refreshes or restarts the active scan.
+  Future<void> refreshScan() async {
+    await startScanning(_targetUuid);
   }
 
   /// Stops the scan and clears the last result.
@@ -158,27 +172,39 @@ class BleScannerService {
     if (_isDisposed) return;
 
     final mfData = result.advertisementData.manufacturerData;
-    final payload = mfData[_manufacturerId];
-    if (payload == null || payload.isEmpty) return;
+    if (mfData.isEmpty) return;
 
-    final parsedUuid = BleAdvertiserService.parseUuid(payload);
-    if (parsedUuid == null) return;
-
-    final parsedClean = parsedUuid.replaceAll('-', '').toLowerCase();
-    // If target UUID is specified, filter by it; if not specified, accept any GeoAttend beacon
-    if (_targetUuid.isNotEmpty && _targetUuid.length >= 8) {
-      if (!parsedClean.startsWith(_targetUuid.substring(0, 8))) {
-        return; // wrong session
+    List<int>? payload = mfData[_manufacturerId];
+    if (payload == null || payload.isEmpty) {
+      // Check byte-swapped ID (0xAAFF)
+      payload = mfData[0xAAFF];
+    }
+    if (payload == null || payload.isEmpty) {
+      // Fallback: Check any manufacturer data entry of 5 bytes
+      for (final entry in mfData.entries) {
+        if (entry.value.length == 5) {
+          payload = entry.value;
+          break;
+        }
       }
     }
 
-    final code = BleAdvertiserService.parseCode(payload);
-    if (code == null) return;
+    if (payload == null || payload.length < 5) return;
 
+    final sessionTag = BleAdvertiserService.parseSessionTag(payload);
+    final code = BleAdvertiserService.parseCode(payload);
+    if (sessionTag == null || code == null) return;
+
+    // Filter by target session tag if specified
+    if (_targetSessionTag != null && _targetSessionTag != sessionTag) {
+      return; // different session
+    }
+
+    final hexTag = sessionTag.toRadixString(16).padLeft(8, '0');
     final beaconResult = BleBeaconResult(
       code: code,
       rssi: result.rssi,
-      uuid: parsedUuid,
+      uuid: _targetUuid.isNotEmpty ? _targetUuid : 'session-$hexTag',
     );
 
     _lastResult = beaconResult;
@@ -187,7 +213,7 @@ class BleScannerService {
     }
 
     debugPrint(
-      'BleScannerService: beacon detected — code=$code, rssi=${result.rssi}',
+      'BleScannerService: beacon detected — code=$code, tag=0x$hexTag, rssi=${result.rssi}',
     );
   }
 }

@@ -101,6 +101,9 @@ class FacultyController extends ChangeNotifier {
   void _subscribeBle() {
     _bleCodeSub = _bleAdvertiser.codeStream.listen((code) {
       bleCurrentCode = code;
+      if (activeSession != null && activeSession!.isActive && !activeSession!.isExpired) {
+        _firebaseService.updateCurrentBleCode(code);
+      }
       notifyListeners();
     });
     _bleAdvertisingSub = _bleAdvertiser.advertisingStream.listen((active) {
@@ -187,8 +190,9 @@ class FacultyController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Generate a unique BLE session UUID
-      final bleUuid = _generateUuid();
+      // 1. Start BLE advertising first (generates initial code)
+      await _bleAdvertiser.startAdvertising(bleUuid);
+      bleCurrentCode = _bleAdvertiser.currentCode;
 
       final now = DateTime.now();
       final session = AttendanceSession(
@@ -204,15 +208,13 @@ class FacultyController extends ChangeNotifier {
         facultyHeading: lockedHeading,
         frontSectorDegrees: directionalMode ? sectorDegrees : 360.0,
         bleSessionUuid: bleUuid,
+        currentBleCode: bleCurrentCode,
       );
 
-      // 1. Write session to Firebase (students will pick it up)
+      // 2. Write session to Firebase (students will pick it up)
       await _firebaseService.createSession(session);
 
-      // 2. Start BLE advertising (Android only; no-op on iOS)
-      await _bleAdvertiser.startAdvertising(bleUuid);
-
-      debugPrint('FacultyController: session started, BLE UUID=$bleUuid');
+      debugPrint('FacultyController: session started, BLE UUID=$bleUuid, code=$bleCurrentCode');
     } finally {
       isStartingSession = false;
       notifyListeners();
