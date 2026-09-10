@@ -118,6 +118,13 @@ class BleScannerService {
     _lastResult = null;
 
     try {
+      final isSupported = await FlutterBluePlus.isSupported;
+      if (!isSupported) {
+        debugPrint('BleScannerService: Bluetooth not supported on this device or simulator.');
+        _isScanning = false;
+        return;
+      }
+
       await FlutterBluePlus.startScan(
         timeout: const Duration(hours: 2),
         androidScanMode: AndroidScanMode.lowLatency,
@@ -150,7 +157,13 @@ class BleScannerService {
         'BleScannerService: scan started (targetTag: ${_targetSessionTag != null ? "0x${_targetSessionTag!.toRadixString(16).padLeft(8, '0')}" : "ANY"})',
       );
     } catch (e) {
-      debugPrint('BleScannerService: startScan error: $e');
+      final errStr = e.toString();
+      if (errStr.contains('CBManagerStateUnsupported') ||
+          errStr.contains('unsupported')) {
+        debugPrint('BleScannerService: BLE scanning unsupported on this hardware/simulator.');
+      } else {
+        debugPrint('BleScannerService: startScan error: $e');
+      }
       _isScanning = false;
     }
   }

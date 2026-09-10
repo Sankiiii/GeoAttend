@@ -394,40 +394,34 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
     final crcHex =
         beacon.checksum.toRadixString(16).padLeft(4, '0').toUpperCase();
 
+    final borderColor = beacon.isCrcValid
+        ? cs.primary.withValues(alpha: 0.2)
+        : Colors.red.withValues(alpha: 0.3);
+    final accentColor =
+        beacon.isCrcValid ? cs.primary : Colors.red.shade400;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cs.primary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(
-            color: beacon.isCrcValid ? cs.primary : Colors.red.shade400,
-            width: 3,
-          ),
-          right: BorderSide(
-            color: beacon.isCrcValid
-                ? cs.primary.withValues(alpha: 0.15)
-                : Colors.red.withValues(alpha: 0.15),
-          ),
-          top: BorderSide(
-            color: beacon.isCrcValid
-                ? cs.primary.withValues(alpha: 0.15)
-                : Colors.red.withValues(alpha: 0.15),
-          ),
-          bottom: BorderSide(
-            color: beacon.isCrcValid
-                ? cs.primary.withValues(alpha: 0.15)
-                : Colors.red.withValues(alpha: 0.15),
-          ),
-        ),
+        border: Border.all(color: borderColor),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 3.5, color: accentColor),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
               Row(
                 children: [
                   Icon(Icons.sensors_rounded, size: 15, color: cs.primary),
@@ -490,6 +484,11 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  ),
+],
+),
+),
+);
+}
 }

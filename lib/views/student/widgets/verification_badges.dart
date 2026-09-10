@@ -106,37 +106,43 @@ class VerificationBadges extends StatelessWidget {
     required String sub,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          top: BorderSide(color: color, width: 3),
-          left: BorderSide(color: color.withValues(alpha: 0.2)),
-          right: BorderSide(color: color.withValues(alpha: 0.2)),
-          bottom: BorderSide(color: color.withValues(alpha: 0.2)),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Column(children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 5),
-        Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            height: 3,
             color: color,
-            fontSize: 12,
           ),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          sub,
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ]),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 10),
+            child: Column(children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                sub,
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 }

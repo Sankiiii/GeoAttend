@@ -84,30 +84,43 @@ class DemoToolsCard extends StatelessWidget {
               onSelected: (_) => controller.setOffsetMeters(150),
             ),
           ]),
-          const SizedBox(height: 6),
-          SwitchListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: const Text(
-              'Simulate Fake / Mock GPS',
-              style: TextStyle(fontSize: 12),
-            ),
-            value: controller.simulateMock,
-            onChanged: controller.toggleSimulateMock,
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Simulate Fake / Mock GPS',
+                style: TextStyle(fontSize: 12),
+              ),
+              Switch(
+                value: controller.simulateMock,
+                onChanged: controller.toggleSimulateMock,
+              ),
+            ],
           ),
-          SwitchListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: const Text(
-              'Simulate BLE Beacon Found (#42)',
-              style: TextStyle(fontSize: 12),
-            ),
-            subtitle: const Text(
-              'Tests Layer 1 challenge without a 2nd physical device',
-              style: TextStyle(fontSize: 10),
-            ),
-            value: controller.simulateBeaconFound,
-            onChanged: controller.toggleSimulateBeacon,
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Simulate BLE Beacon Found (#42)',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    Text(
+                      'Tests Layer 1 challenge without a 2nd physical device',
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: controller.simulateBeaconFound,
+                onChanged: controller.toggleSimulateBeacon,
+              ),
+            ],
           ),
         ],
       ),

@@ -55,7 +55,7 @@ class RoleSelectorScreen extends StatelessWidget {
                       const SizedBox(height: 20),
 
                       Text(
-                        'GeoAttend',
+                        'GeoAttendance',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 30,

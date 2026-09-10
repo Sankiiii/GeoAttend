@@ -372,35 +372,52 @@ class SessionConfigCard extends StatelessWidget {
             ? Colors.blue.withValues(alpha: 0.05)
             : cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(14),
-        border: Border(
-          left: BorderSide(
-            color: isOn ? cs.primary : Colors.grey.shade300,
-            width: 4,
-          ),
-          right: BorderSide(color: isOn ? cs.primary.withValues(alpha: 0.15) : Colors.grey.shade200),
-          top: BorderSide(color: isOn ? cs.primary.withValues(alpha: 0.15) : Colors.grey.shade200),
-          bottom: BorderSide(color: isOn ? cs.primary.withValues(alpha: 0.15) : Colors.grey.shade200),
+        border: Border.all(
+          color: isOn
+              ? cs.primary.withValues(alpha: 0.3)
+              : cs.outlineVariant,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text(
-                '🧭  Directional Mode (Front-Side Only)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              subtitle: const Text(
-                'Only students in front of you can mark attendance',
-                style: TextStyle(fontSize: 11),
-              ),
-              value: controller.directionalMode,
-              onChanged: controller.setDirectionalMode,
+            Container(
+              width: 4,
+              color: isOn ? cs.primary : Colors.grey.shade400,
             ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '🧭  Directional Mode (Front-Side Only)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Only students in front of you can mark attendance',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: controller.directionalMode,
+                          onChanged: controller.setDirectionalMode,
+                        ),
+                      ],
+                    ),
             if (controller.directionalMode) ...[
               const Divider(height: 16),
 
@@ -473,6 +490,10 @@ class SessionConfigCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  ],
+),
+),
+);
+}
 }
