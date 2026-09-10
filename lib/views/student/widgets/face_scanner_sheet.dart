@@ -272,7 +272,7 @@ class _FaceScannerSheetState extends State<FaceScannerSheet>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Layer 3: Face Verification',
+                      'Layer 2: Face Verification',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,

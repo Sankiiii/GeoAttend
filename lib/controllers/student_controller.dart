@@ -455,9 +455,9 @@ class StudentController extends ChangeNotifier {
             'Student is behind teacher (bearing ${bear.toStringAsFixed(0)}°, allowed front zone: ±${(s.frontSectorDegrees / 2).toStringAsFixed(0)}°).';
       } else {
         status = AttendanceStatus.approved;
-        final faceInfo = faceVerified ? ', Layer 3 (Face Verified ✓)' : '';
+        final faceInfo = faceVerified ? ', Layer 2 (Face Verified ✓)' : '';
         remark =
-            'Verified Layer 1 (BLE Code #$verifiedCode) & Layer 2 (GPS ${dist.toStringAsFixed(1)}m, ${inSector ? 'front sector' : '360°'})$faceInfo.';
+            'Verified Layer 1 (BLE Code #$verifiedCode)$faceInfo, & Layer 3 (GPS ${dist.toStringAsFixed(1)}m, ${inSector ? 'front sector' : '360°'}).';
       }
 
       final record = AttendanceRecord(

@@ -58,7 +58,7 @@ class _StudentScreenState extends State<StudentScreen> {
       return;
     }
 
-    // Require registered profile photo for Layer 3 Face Verification
+    // Require registered profile photo for Layer 2 Face Verification
     if (!_controller.hasProfilePhoto) {
       final shouldSetup = await showDialog<bool>(
         context: context,
@@ -68,7 +68,7 @@ class _StudentScreenState extends State<StudentScreen> {
           title:
               const Text('Profile Photo Required', textAlign: TextAlign.center),
           content: const Text(
-            'Layer 3 requires an official profile photo to match against your live camera scan.\n\nPlease take a quick selfie to set up your profile.',
+            'Layer 2 requires an official profile photo to match against your live camera scan.\n\nPlease take a quick selfie to set up your profile.',
             textAlign: TextAlign.center,
           ),
           actions: [
@@ -91,7 +91,7 @@ class _StudentScreenState extends State<StudentScreen> {
       return;
     }
 
-    // ── Open Layer 3 Live Face Scanner ──────────────────────────────────
+    // ── Open Layer 2 Live Face Scanner ──────────────────────────────────
     final scanResult =
         await showModalBottomSheet<({bool verified, String? photoPath})>(
       context: context,
@@ -126,7 +126,7 @@ class _StudentScreenState extends State<StudentScreen> {
             ? '• Layer 1 (BLE): Code #${record.bleCodeUsed?.toString().padLeft(2, '0')} Verified ✓\n'
             : '';
         final faceInfo = record.faceVerified
-            ? '• Layer 3 (Face ID): Live Scan Matched Profile ✓\n'
+            ? '• Layer 2 (Face ID): Live Scan Matched Profile ✓\n'
             : '';
         final isOffline = _controller.wasSubmittedOffline;
         _showResultDialog(
@@ -134,8 +134,8 @@ class _StudentScreenState extends State<StudentScreen> {
               ? 'Attendance Saved Offline! 📱'
               : 'Attendance Marked! ✅',
           message: isOffline
-              ? 'All 3 layers verified!\n\n$bleInfo• Layer 2 (Distance): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n$faceInfo\nYour record is safely stored offline and will auto-sync when internet returns.'
-              : 'All 3 layers verified inside classroom!\n\n$bleInfo• Layer 2 (Distance): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓\n$faceInfo',
+              ? 'All 3 layers verified!\n\n$bleInfo$faceInfo• Layer 3 (Geo/Distance): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n\nYour record is safely stored offline and will auto-sync when internet returns.'
+              : 'All 3 layers verified inside classroom!\n\n$bleInfo$faceInfo• Layer 3 (Geo/Distance): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓',
           isSuccess: true,
         );
       } else if (record.status == AttendanceStatus.flaggedMockLocation) {
@@ -702,7 +702,7 @@ class _StudentScreenState extends State<StudentScreen> {
                         const SizedBox(height: 2),
                         Text(
                           hasPhoto
-                              ? 'Used as ground-truth for Layer 3 Face Scan'
+                              ? 'Used as ground-truth for Layer 2 Face Scan'
                               : 'Tap to snap a selfie or choose from gallery',
                           style: TextStyle(
                             fontSize: 11,
@@ -805,7 +805,7 @@ class _StudentScreenState extends State<StudentScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Register Profile Photo (Layer 3 Face ID)',
+                'Register Profile Photo (Layer 2 Face ID)',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 6),

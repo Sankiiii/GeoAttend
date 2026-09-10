@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'faculty/faculty_screen.dart';
 import 'student/student_screen.dart';
+import 'test/layer2_face_test_screen.dart';
 
 class RoleSelectorScreen extends StatelessWidget {
   const RoleSelectorScreen({super.key});
@@ -157,12 +158,28 @@ class RoleSelectorScreen extends StatelessWidget {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 14),
+
+                      _RoleCard(
+                        icon: Icons.face_retouching_natural_rounded,
+                        title: '🧪 Test Layer 2: Face Verification',
+                        subtitle:
+                            'Standalone test • Match live camera face with profile photo',
+                        color: Colors.purple.shade700,
+                        accentColor: Colors.purple.shade50,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const Layer2FaceTestScreen(),
+                          ),
+                        ),
+                      ),
 
                       const Spacer(),
 
                       // Footer
                       Text(
-                        'Layer 1: BLE Proximity  ·  Layer 2: GPS Geofence',
+                        'Layer 1: BLE  ·  Layer 2: Face Verification  ·  Layer 3: GPS Geofence',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 10,
