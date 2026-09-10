@@ -84,6 +84,8 @@ void main() {
         remarks: 'Layer 1 & Layer 3 passed',
         bleVerified: true,
         bleCodeUsed: 88,
+        faceVerified: true,
+        photoBase64: 'base64sampledata',
       );
 
       final json = record.toJson();
@@ -91,12 +93,16 @@ void main() {
       expect(json['rollNo'], equals('22CS102'));
       expect(json['bleVerified'], isTrue);
       expect(json['bleCodeUsed'], equals(88));
+      expect(json['faceVerified'], isTrue);
+      expect(json['photoBase64'], equals('base64sampledata'));
 
       final parsed = AttendanceRecord.fromJson('rec-001', json);
       expect(parsed.id, equals('rec-001'));
       expect(parsed.studentName, equals('Aarav Patel'));
       expect(parsed.bleVerified, isTrue);
       expect(parsed.bleCodeUsed, equals(88));
+      expect(parsed.faceVerified, isTrue);
+      expect(parsed.photoBase64, equals('base64sampledata'));
       expect(parsed.status, equals(AttendanceStatus.approved));
     });
   });

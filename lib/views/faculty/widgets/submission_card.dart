@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../../models/attendance_record.dart';
 import '../../../models/attendance_status.dart';
@@ -20,6 +21,7 @@ class SubmissionCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isWithinRadius = record.distanceMeters <= sessionRadius;
     final statusColor = record.status.color;
+    final hasPhoto = record.photoBase64 != null && record.photoBase64!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -63,16 +65,21 @@ class SubmissionCard extends StatelessWidget {
                     CircleAvatar(
                       radius: 22,
                       backgroundColor: cs.primaryContainer,
-                      child: Text(
-                        record.studentName.isNotEmpty
-                            ? record.studentName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 17,
-                          color: cs.onPrimaryContainer,
-                        ),
-                      ),
+                      backgroundImage: hasPhoto
+                          ? MemoryImage(base64Decode(record.photoBase64!))
+                          : null,
+                      child: !hasPhoto
+                          ? Text(
+                              record.studentName.isNotEmpty
+                                  ? record.studentName[0].toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 17,
+                                color: cs.onPrimaryContainer,
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -134,6 +141,12 @@ class SubmissionCard extends StatelessWidget {
                         Icons.bluetooth_connected_rounded,
                         'BLE #${record.bleCodeUsed?.toString().padLeft(2, '0') ?? '✓'}',
                         Colors.indigo.shade700,
+                      ),
+                    if (record.faceVerified)
+                      _buildChip(
+                        Icons.face_retouching_natural_rounded,
+                        'Face ID Verified',
+                        Colors.purple.shade700,
                       ),
                     _buildChip(
                       Icons.access_time_rounded,

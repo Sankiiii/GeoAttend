@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../controllers/student_controller.dart';
 import '../../models/attendance_session.dart';
 import '../../models/attendance_status.dart';
@@ -9,6 +11,7 @@ import 'widgets/verification_badges.dart';
 import 'widgets/demo_tools_card.dart';
 import 'widgets/number_challenge_card.dart';
 import 'widgets/sync_status_card.dart';
+import 'widgets/face_scanner_sheet.dart';
 
 class StudentScreen extends StatefulWidget {
   const StudentScreen({super.key});
@@ -44,20 +47,95 @@ class _StudentScreenState extends State<StudentScreen> {
       roll: _rollController.text.trim(),
     );
 
+    if (_nameController.text.trim().isEmpty ||
+        _rollController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your Full Name and Roll Number.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Require registered profile photo for Layer 3 Face Verification
+    if (!_controller.hasProfilePhoto) {
+      final shouldSetup = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.face_retouching_natural_rounded,
+              size: 44, color: Colors.blue),
+          title:
+              const Text('Profile Photo Required', textAlign: TextAlign.center),
+          content: const Text(
+            'Layer 3 requires an official profile photo to match against your live camera scan.\n\nPlease take a quick selfie to set up your profile.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.camera_alt_rounded),
+              label: const Text('Take Selfie'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldSetup == true && mounted) {
+        await _controller.pickAndRegisterProfilePhoto(source: ImageSource.camera);
+      }
+      return;
+    }
+
+    // ── Open Layer 3 Live Face Scanner ──────────────────────────────────
+    final scanResult =
+        await showModalBottomSheet<({bool verified, String? photoPath})>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => FaceScannerSheet(
+        targetSignature: _controller.profileSignature,
+        studentName: _nameController.text.trim(),
+      ),
+    );
+
+    if (scanResult?.verified != true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Face verification not completed.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
-      final record = await _controller.submitAttendance();
+      final record = await _controller.submitAttendance(
+        faceVerified: true,
+      );
       if (!mounted) return;
 
       if (record.status == AttendanceStatus.approved) {
         final bleInfo = record.bleVerified
             ? '• Layer 1 (BLE): Code #${record.bleCodeUsed?.toString().padLeft(2, '0')} Verified ✓\n'
             : '';
+        final faceInfo = record.faceVerified
+            ? '• Layer 3 (Face ID): Live Scan Matched Profile ✓\n'
+            : '';
         final isOffline = _controller.wasSubmittedOffline;
         _showResultDialog(
-          title: isOffline ? 'Attendance Saved Offline! 📱' : 'Attendance Marked! ✅',
+          title: isOffline
+              ? 'Attendance Saved Offline! 📱'
+              : 'Attendance Marked! ✅',
           message: isOffline
-              ? 'You are verified inside Bluetooth range.\n\n$bleInfo• Distance: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n\nYour record is safely stored offline and will auto-sync when internet returns.'
-              : 'You are verified inside the classroom.\n\n$bleInfo• Distance: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓',
+              ? 'All 3 layers verified!\n\n$bleInfo• Layer 2 (Distance): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n$faceInfo\nYour record is safely stored offline and will auto-sync when internet returns.'
+              : 'All 3 layers verified inside classroom!\n\n$bleInfo• Layer 2 (Distance): ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓\n$faceInfo',
           isSuccess: true,
         );
       } else if (record.status == AttendanceStatus.flaggedMockLocation) {
@@ -503,22 +581,180 @@ class _StudentScreenState extends State<StudentScreen> {
   }
 
   Widget _buildIdentityCard(ColorScheme cs) {
+    final hasPhoto = _controller.hasProfilePhoto;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.person_pin_rounded, size: 18, color: cs.primary),
-            const SizedBox(width: 8),
-            const Text(
-              'Student Details',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-          ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [
+                Icon(Icons.person_pin_rounded, size: 18, color: cs.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  'Student Details',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ]),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: hasPhoto
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: hasPhoto
+                        ? Colors.green.withValues(alpha: 0.3)
+                        : Colors.orange.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      hasPhoto
+                          ? Icons.verified_user_rounded
+                          : Icons.add_a_photo_outlined,
+                      size: 12,
+                      color: hasPhoto ? Colors.green : Colors.orange.shade800,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      hasPhoto ? 'Face ID Ready' : 'Photo Needed',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: hasPhoto ? Colors.green : Colors.orange.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
+
+          // ── Profile Photo Picker Row ────────────────────────────────
+          InkWell(
+            onTap: () => _showPhotoPickerSheet(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: hasPhoto
+                      ? Colors.green.withValues(alpha: 0.25)
+                      : cs.outlineVariant,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: cs.primaryContainer,
+                        backgroundImage: hasPhoto
+                            ? FileImage(File(_controller.profilePhotoPath!))
+                            : null,
+                        child: !hasPhoto
+                            ? Icon(Icons.person_rounded,
+                                size: 32, color: cs.primary)
+                            : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: cs.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded,
+                              size: 11, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasPhoto
+                              ? 'Official Profile Photo Registered ✓'
+                              : 'Set Official Profile Photo',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: hasPhoto ? Colors.green.shade800 : cs.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasPhoto
+                              ? 'Used as ground-truth for Layer 3 Face Scan'
+                              : 'Tap to snap a selfie or choose from gallery',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded,
+                      size: 18, color: cs.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
+
+          if (_controller.isRegisteringFace) ...[
+            const SizedBox(height: 10),
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 8),
+                Text('Detecting & registering face...',
+                    style: TextStyle(fontSize: 12)),
+              ],
+            ),
+          ],
+
+          if (_controller.faceRegistrationError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _controller.faceRegistrationError!,
+              style: const TextStyle(color: Colors.red, fontSize: 11),
+            ),
+          ],
+
+          const SizedBox(height: 14),
+
           TextField(
             controller: _nameController,
             textCapitalization: TextCapitalization.words,
+            onChanged: (val) {
+              _controller.setStudentDetails(
+                name: val.trim(),
+                roll: _rollController.text.trim(),
+              );
+            },
             decoration: const InputDecoration(
               labelText: 'Full Name *',
               hintText: 'e.g. Rahul Sharma',
@@ -529,6 +765,12 @@ class _StudentScreenState extends State<StudentScreen> {
           TextField(
             controller: _rollController,
             textCapitalization: TextCapitalization.characters,
+            onChanged: (val) {
+              _controller.setStudentDetails(
+                name: _nameController.text.trim(),
+                roll: val.trim(),
+              );
+            },
             decoration: const InputDecoration(
               labelText: 'Roll Number / Student ID *',
               hintText: 'e.g. 22BCS045',
@@ -536,6 +778,77 @@ class _StudentScreenState extends State<StudentScreen> {
             ),
           ),
         ]),
+      ),
+    );
+  }
+
+  void _showPhotoPickerSheet(BuildContext context) {
+    if (_rollController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your Roll Number first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Register Profile Photo (Layer 3 Face ID)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Make sure your face is clearly visible and well lit.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded, color: Colors.blue),
+                ),
+                title: const Text('Take Selfie with Camera'),
+                subtitle: const Text('Recommended for best face alignment'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _controller.pickAndRegisterProfilePhoto(source: ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: Colors.purple),
+                ),
+                title: const Text('Choose from Photo Gallery'),
+                subtitle: const Text('Select a clear portrait photo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _controller.pickAndRegisterProfilePhoto(source: ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

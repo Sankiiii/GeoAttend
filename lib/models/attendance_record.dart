@@ -18,6 +18,10 @@ class AttendanceRecord {
   final bool bleVerified;   // true if student passed the number challenge
   final int? bleCodeUsed;   // the 2-digit code that was matched (audit trail)
 
+  // Layer 3 — Face verification fields
+  final bool faceVerified;  // true if live camera scan matched profile photo
+  final String? photoBase64; // thumbnail of verified student photo
+
   AttendanceRecord({
     required this.id,
     required this.studentName,
@@ -33,6 +37,8 @@ class AttendanceRecord {
     this.remarks,
     this.bleVerified = false,
     this.bleCodeUsed,
+    this.faceVerified = false,
+    this.photoBase64,
   });
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +56,8 @@ class AttendanceRecord {
         'remarks': remarks ?? '',
         'bleVerified': bleVerified,
         'bleCodeUsed': bleCodeUsed,
+        'faceVerified': faceVerified,
+        if (photoBase64 != null) 'photoBase64': photoBase64,
       };
 
   factory AttendanceRecord.fromJson(String id, Map<dynamic, dynamic> json) {
@@ -71,6 +79,8 @@ class AttendanceRecord {
       remarks: json['remarks'] as String?,
       bleVerified: json['bleVerified'] as bool? ?? false,
       bleCodeUsed: json['bleCodeUsed'] as int?,
+      faceVerified: json['faceVerified'] as bool? ?? false,
+      photoBase64: json['photoBase64'] as String?,
     );
   }
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/attendance_session.dart';
 import '../models/attendance_record.dart';
 import '../models/attendance_status.dart';
@@ -9,15 +11,25 @@ import '../services/location_service.dart';
 import '../services/firebase_service.dart';
 import '../services/ble_scanner_service.dart';
 import '../services/sync_queue_service.dart';
+import '../services/face_verification_service.dart';
 import '../utils/geo_utils.dart';
 
 class StudentController extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   final BleScannerService _bleScanner = BleScannerService();
+  final FaceVerificationService _faceService = FaceVerificationService();
 
   // Student Identity
   String studentName = '';
   String rollNo = '';
+
+  // Layer 3: Face Verification / Profile Photo State
+  String? profilePhotoPath;
+  String? profilePhotoBase64;
+  FaceSignature? profileSignature;
+  bool isRegisteringFace = false;
+  String? faceRegistrationError;
+  bool get hasProfilePhoto => profilePhotoPath != null;
 
   // GPS State
   Position? currentPosition;
@@ -221,7 +233,83 @@ class StudentController extends ChangeNotifier {
 
   void setStudentDetails({required String name, required String roll}) {
     studentName = name;
+    final changed = rollNo.trim().toUpperCase() != roll.trim().toUpperCase();
     rollNo = roll;
+    if (changed && roll.trim().isNotEmpty) {
+      loadStoredProfile(roll.trim());
+    }
+  }
+
+  /// Loads previously registered face signature & photo for the given roll number.
+  Future<void> loadStoredProfile(String roll) async {
+    if (roll.trim().isEmpty) return;
+    final profile = await _faceService.getStudentProfile(roll);
+    if (profile != null) {
+      profilePhotoPath = profile.photoPath;
+      profileSignature = profile.signature;
+      profilePhotoBase64 = profile.base64Thumbnail;
+      faceRegistrationError = null;
+      notifyListeners();
+    } else {
+      profilePhotoPath = null;
+      profileSignature = null;
+      profilePhotoBase64 = null;
+      notifyListeners();
+    }
+  }
+
+  /// Registers a profile photo from Camera or Gallery for Layer 3 Face Verification.
+  Future<bool> pickAndRegisterProfilePhoto({required ImageSource source}) async {
+    if (rollNo.trim().isEmpty) {
+      faceRegistrationError = 'Please enter your Roll Number first.';
+      notifyListeners();
+      return false;
+    }
+
+    isRegisteringFace = true;
+    faceRegistrationError = null;
+    notifyListeners();
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 85,
+      );
+
+      if (picked == null) {
+        isRegisteringFace = false;
+        notifyListeners();
+        return false;
+      }
+
+      final file = File(picked.path);
+      final regResult = await _faceService.registerProfilePhoto(file);
+
+      profilePhotoPath = picked.path;
+      profileSignature = regResult.signature;
+      profilePhotoBase64 = regResult.base64Thumbnail;
+
+      await _faceService.saveStudentProfile(
+        rollNo: rollNo.trim(),
+        photoPath: picked.path,
+        signature: regResult.signature,
+        base64Thumbnail: regResult.base64Thumbnail,
+      );
+
+      isRegisteringFace = false;
+      faceRegistrationError = null;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      isRegisteringFace = false;
+      faceRegistrationError = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
   }
 
   void setOffsetMeters(double val) {
@@ -306,7 +394,10 @@ class StudentController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<AttendanceRecord> submitAttendance() async {
+  Future<AttendanceRecord> submitAttendance({
+    bool faceVerified = false,
+    String? photoBase64,
+  }) async {
     if (studentName.trim().isEmpty || rollNo.trim().isEmpty) {
       throw Exception('Please fill in your Full Name and Roll Number.');
     }
@@ -364,8 +455,9 @@ class StudentController extends ChangeNotifier {
             'Student is behind teacher (bearing ${bear.toStringAsFixed(0)}°, allowed front zone: ±${(s.frontSectorDegrees / 2).toStringAsFixed(0)}°).';
       } else {
         status = AttendanceStatus.approved;
+        final faceInfo = faceVerified ? ', Layer 3 (Face Verified ✓)' : '';
         remark =
-            'Verified Layer 1 (BLE Code #$verifiedCode) & Layer 3 (GPS ${dist.toStringAsFixed(1)}m, ${inSector ? 'front sector' : '360°'}).';
+            'Verified Layer 1 (BLE Code #$verifiedCode) & Layer 2 (GPS ${dist.toStringAsFixed(1)}m, ${inSector ? 'front sector' : '360°'})$faceInfo.';
       }
 
       final record = AttendanceRecord(
@@ -383,6 +475,8 @@ class StudentController extends ChangeNotifier {
         remarks: remark,
         bleVerified: numberChallengeVerified,
         bleCodeUsed: verifiedCode,
+        faceVerified: faceVerified,
+        photoBase64: photoBase64 ?? profilePhotoBase64,
       );
 
       // 1. Always persist to local queue first (guaranteed 100% offline safety)

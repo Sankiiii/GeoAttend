@@ -6,6 +6,10 @@
 	<string>This app needs access to location to show live latitude and longitude.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to location to show live latitude and longitude.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required for face verification and profile photo capture.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required to select student profile photo.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -46,6 +46,9 @@ dependencies:
   flutter_ble_peripheral: ^3.1.0
   permission_handler: 11.3.1
   shared_preferences: ^2.5.5
+  image_picker: ^1.1.2
+  camera: ^0.11.0+2
+  google_mlkit_face_detection: ^0.13.0
 
 dev_dependencies:
   flutter_test:
