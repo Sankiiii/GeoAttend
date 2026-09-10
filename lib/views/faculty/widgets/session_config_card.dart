@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../controllers/faculty_controller.dart';
 import '../../../utils/geo_utils.dart';
@@ -34,36 +33,55 @@ class SessionConfigCard extends StatelessWidget {
         !controller.activeSession!.isExpired;
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Header ─────────────────────────────────────────────────
             Row(children: [
-              Icon(Icons.add_location_alt_rounded, color: cs.primary),
-              const SizedBox(width: 8),
-              Text(
-                isRunning ? 'Configure Next Session' : 'Step 1: Start Session',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isRunning ? 'LIVE' : 'STEP 1',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onPrimaryContainer,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isRunning ? 'Configure Next Session' : 'Start Attendance Session',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.add_location_alt_rounded, color: cs.primary, size: 20),
             ]),
-            const Divider(height: 24),
+            const SizedBox(height: 6),
+            const Divider(),
+            const SizedBox(height: 10),
 
-            // Class Title
+            // ── Class Title ─────────────────────────────────────────────
             TextField(
               controller: titleController,
               onChanged: controller.setTitle,
               decoration: const InputDecoration(
                 labelText: 'Class / Session Title (e.g. CS101)',
-                border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.class_rounded),
               ),
             ),
             const SizedBox(height: 12),
 
-            // Faculty Name & Room / Hall
+            // ── Faculty Name & Room ─────────────────────────────────────
             Row(
               children: [
                 Expanded(
@@ -73,7 +91,6 @@ class SessionConfigCard extends StatelessWidget {
                     onChanged: controller.setFacultyName,
                     decoration: const InputDecoration(
                       labelText: 'Faculty Name',
-                      border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.person_rounded),
                     ),
                   ),
@@ -87,7 +104,6 @@ class SessionConfigCard extends StatelessWidget {
                     decoration: const InputDecoration(
                       labelText: 'Room / Hall',
                       hintText: 'LH-1',
-                      border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.meeting_room_rounded),
                     ),
                   ),
@@ -96,25 +112,19 @@ class SessionConfigCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // GPS Status Box
+            // ── GPS Box ─────────────────────────────────────────────────
             _buildGpsBox(context, cs),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
-            // Bluetooth Range Slider
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Bluetooth Range (BLE Proximity)',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text('${controller.radiusMeters.toInt()} m',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: cs.primary)),
-              ),
-            ]),
+            // ── BLE Range ───────────────────────────────────────────────
+            _buildSectionLabel(
+              context,
+              icon: Icons.bluetooth_rounded,
+              title: 'Bluetooth Range (BLE Proximity)',
+              badge: '${controller.radiusMeters.toInt()} m',
+              badgeColor: cs.primary,
+            ),
+            const SizedBox(height: 6),
             Slider(
               value: controller.radiusMeters.clamp(5.0, 60.0),
               min: 5,
@@ -136,23 +146,22 @@ class SessionConfigCard extends StatelessWidget {
                 );
               }).toList(),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
+            Text(
+              '5 m min  •  60 m max (BLE physical limit)',
+              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 16),
 
-            // Session Duration Slider
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Session Duration',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text('${controller.durationMinutes} min',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: cs.primary)),
-              ),
-            ]),
+            // ── Session Duration ────────────────────────────────────────
+            _buildSectionLabel(
+              context,
+              icon: Icons.timer_outlined,
+              title: 'Session Duration',
+              badge: '${controller.durationMinutes} min',
+              badgeColor: cs.secondary,
+            ),
+            const SizedBox(height: 4),
             Slider(
               value: controller.durationMinutes.toDouble(),
               min: 1,
@@ -160,13 +169,13 @@ class SessionConfigCard extends StatelessWidget {
               divisions: 29,
               onChanged: (v) => controller.setDuration(v.toInt()),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
-            // Directional Mode Card
+            // ── Directional Mode Card ───────────────────────────────────
             _buildDirectionalCard(context, cs),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
-            // Start Session Button
+            // ── Start Button ────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -180,7 +189,7 @@ class SessionConfigCard extends StatelessWidget {
                               SnackBar(
                                 content: Text(
                                   controller.directionalMode
-                                      ? 'Session started! Directional front ${controller.sectorDegrees.toInt()}° zone active.'
+                                      ? 'Session started! Front ${controller.sectorDegrees.toInt()}° zone active.'
                                       : 'Session started! Full 360° Bluetooth range active.',
                                 ),
                                 backgroundColor: Colors.green.shade700,
@@ -210,34 +219,26 @@ class SessionConfigCard extends StatelessWidget {
                   controller.isStartingSession
                       ? 'Saving to Firebase…'
                       : 'Start Attendance Session',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
                   backgroundColor: cs.primary,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
 
-            // End Session Button
+            // ── End Session Button ──────────────────────────────────────
             if (isRunning) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () async {
-                    await controller.endSession();
-                  },
+                  onPressed: () async => controller.endSession(),
                   icon: const Icon(Icons.stop_circle_outlined, color: Colors.red),
                   label: const Text('End Session Now',
                       style: TextStyle(color: Colors.red)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -248,67 +249,141 @@ class SessionConfigCard extends StatelessWidget {
     );
   }
 
+  /// Reusable labeled section header with a colored badge
+  Widget _buildSectionLabel(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String badge,
+    required Color badgeColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: badgeColor),
+            const SizedBox(width: 6),
+            Text(title,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          ],
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+          decoration: BoxDecoration(
+            color: badgeColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            badge,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: badgeColor,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildGpsBox(BuildContext context, ColorScheme cs) {
+    final hasGps = controller.currentPosition != null;
+    final hasError = controller.gpsError != null;
+    final dotColor = hasGps
+        ? Colors.green
+        : hasError
+            ? Colors.red
+            : Colors.amber;
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: cs.primary.withOpacity(0.05),
+        color: cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.primary.withOpacity(0.2)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Classroom GPS (Faculty Location)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            IconButton(
-              iconSize: 20,
-              icon: controller.isLoadingGps
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.refresh_rounded),
-              onPressed: controller.isLoadingGps ? null : controller.fetchGps,
-              tooltip: 'Refresh GPS',
-            ),
-          ]),
-          if (controller.currentPosition != null) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: dotColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Classroom GPS (Faculty Location)',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: controller.isLoadingGps ? null : controller.fetchGps,
+                child: controller.isLoadingGps
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : Icon(Icons.refresh_rounded,
+                        size: 18, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+          if (hasGps) ...[
+            const SizedBox(height: 6),
             Text(
-              'Lat: ${controller.currentPosition!.latitude.toStringAsFixed(7)}\nLng: ${controller.currentPosition!.longitude.toStringAsFixed(7)}',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              '${controller.currentPosition!.latitude.toStringAsFixed(6)}, '
+              '${controller.currentPosition!.longitude.toStringAsFixed(6)}',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
             ),
             Text(
               'Accuracy: ±${controller.currentPosition!.accuracy.toStringAsFixed(1)} m',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
             ),
-          ] else if (controller.gpsError != null)
+          ] else if (hasError) ...[
+            const SizedBox(height: 6),
             Text(controller.gpsError!,
-                style: const TextStyle(color: Colors.red, fontSize: 12))
-          else
-            const Text('Acquiring GPS…', style: TextStyle(fontSize: 12)),
+                style: const TextStyle(color: Colors.red, fontSize: 12)),
+          ] else ...[
+            const SizedBox(height: 6),
+            Text('Acquiring GPS…',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildDirectionalCard(BuildContext context, ColorScheme cs) {
-    return Card(
-      elevation: 0,
-      color: controller.directionalMode
-          ? Colors.blue.withOpacity(0.07)
-          : Colors.grey.withOpacity(0.07),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: controller.directionalMode
-              ? cs.primary.withOpacity(0.4)
-              : Colors.grey.withOpacity(0.2),
+    final isOn = controller.directionalMode;
+    return Container(
+      decoration: BoxDecoration(
+        color: isOn
+            ? Colors.blue.withValues(alpha: 0.05)
+            : cs.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(14),
+        border: Border(
+          left: BorderSide(
+            color: isOn ? cs.primary : Colors.grey.shade300,
+            width: 4,
+          ),
+          right: BorderSide(color: isOn ? cs.primary.withValues(alpha: 0.15) : Colors.grey.shade200),
+          top: BorderSide(color: isOn ? cs.primary.withValues(alpha: 0.15) : Colors.grey.shade200),
+          bottom: BorderSide(color: isOn ? cs.primary.withValues(alpha: 0.15) : Colors.grey.shade200),
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -316,7 +391,7 @@ class SessionConfigCard extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               dense: true,
               title: const Text(
-                '🧭 Directional Mode (Front-Side Only)',
+                '🧭  Directional Mode (Front-Side Only)',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
               subtitle: const Text(
@@ -328,39 +403,15 @@ class SessionConfigCard extends StatelessWidget {
             ),
             if (controller.directionalMode) ...[
               const Divider(height: 16),
+
               // Facing Direction slider
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Facing Direction',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Transform.rotate(
-                          angle: controller.lockedHeading * math.pi / 180,
-                          child: const Icon(Icons.navigation_rounded,
-                              size: 16, color: Colors.orange),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${controller.lockedHeading.toInt()}°  ${GeoUtils.headingToLabel(controller.lockedHeading)}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange,
-                              fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              _buildSectionLabel(
+                context,
+                icon: Icons.navigation_rounded,
+                title: 'Facing Direction',
+                badge:
+                    '${controller.lockedHeading.toInt()}°  ${GeoUtils.headingToLabel(controller.lockedHeading)}',
+                badgeColor: Colors.orange,
               ),
               Slider(
                 value: controller.lockedHeading,
@@ -371,36 +422,21 @@ class SessionConfigCard extends StatelessWidget {
                 onChanged: controller.setLockedHeading,
               ),
               Text(
-                'Drag to set which direction you face  (0°=N  90°=E  180°=S  270°=W)',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                '0° = North  •  90° = East  •  180° = South  •  270° = West',
+                style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
 
               // Sector Angle slider
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Front Zone Width',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: cs.primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      controller.sectorDegrees >= 359
-                          ? '360° (Full Circle)'
-                          : '${controller.sectorDegrees.toInt()}° arc',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: cs.primary,
-                          fontSize: 12),
-                    ),
-                  ),
-                ],
+              _buildSectionLabel(
+                context,
+                icon: Icons.pie_chart_outline_rounded,
+                title: 'Front Zone Width',
+                badge: controller.sectorDegrees >= 359
+                    ? '360° (Full)'
+                    : '${controller.sectorDegrees.toInt()}° arc',
+                badgeColor: cs.primary,
               ),
               Slider(
                 value: controller.sectorDegrees,
@@ -412,12 +448,13 @@ class SessionConfigCard extends StatelessWidget {
               Text(
                 _sectorDescription(controller.sectorDegrees),
                 style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                    fontStyle: FontStyle.italic),
+                  fontSize: 11,
+                  color: cs.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
               // Visual sector diagram
               Center(

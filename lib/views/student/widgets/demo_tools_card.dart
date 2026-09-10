@@ -13,34 +13,55 @@ class DemoToolsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Card(
-      elevation: 0,
-      color: cs.primary.withOpacity(0.04),
-      shape: RoundedRectangleBorder(
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: cs.primary.withOpacity(0.2)),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(children: [
-            Icon(Icons.science_rounded, color: cs.primary, size: 18),
+            Icon(Icons.science_rounded, color: cs.primary, size: 17),
             const SizedBox(width: 6),
-            Text(
-              'Demo Sandbox Testing Tools',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: cs.primary,
+            Expanded(
+              child: Text(
+                'Demo Sandbox Testing Tools',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: cs.primary,
+                ),
+              ),
+            ),
+            // Dev-only warning badge
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.35)),
+              ),
+              child: const Text(
+                '⚠️ Dev Only',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.orange,
+                ),
               ),
             ),
           ]),
           const SizedBox(height: 6),
           Text(
-            'Simulate distance offset to test in-range/out-of-range scenarios on one phone:',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            'Simulate distance offset to test in-range / out-of-range scenarios:',
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 6, children: [
             ChoiceChip(
               label: const Text('0 m (exact)'),
@@ -82,13 +103,13 @@ class DemoToolsCard extends StatelessWidget {
               style: TextStyle(fontSize: 12),
             ),
             subtitle: const Text(
-              'Tests Layer 1 challenge without 2nd physical device',
+              'Tests Layer 1 challenge without a 2nd physical device',
               style: TextStyle(fontSize: 10),
             ),
             value: controller.simulateBeaconFound,
             onChanged: controller.toggleSimulateBeacon,
           ),
-        ]),
+        ],
       ),
     );
   }

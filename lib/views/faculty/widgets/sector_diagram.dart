@@ -19,7 +19,7 @@ class SectorDiagramPainter extends CustomPainter {
     canvas.drawCircle(
       center,
       radius,
-      Paint()..color = Colors.red.withOpacity(0.12),
+      Paint()..color = Colors.red.withValues(alpha: 0.12),
     );
 
     // Front sector (green)
@@ -32,14 +32,14 @@ class SectorDiagramPainter extends CustomPainter {
         startAngle,
         sweepAngle,
         true,
-        Paint()..color = Colors.green.withOpacity(0.25),
+        Paint()..color = Colors.green.withValues(alpha: 0.25),
       );
     } else {
       // Full circle green
       canvas.drawCircle(
         center,
         radius,
-        Paint()..color = Colors.green.withOpacity(0.2),
+        Paint()..color = Colors.green.withValues(alpha: 0.2),
       );
     }
 

@@ -32,13 +32,14 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
     final isVerified = controller.numberChallengeVerified;
 
     return Card(
-      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: isVerified
               ? Colors.green.shade400
-              : (isDetected ? cs.primary.withOpacity(0.4) : Colors.grey.shade300),
+              : (isDetected
+                  ? cs.primary.withValues(alpha: 0.35)
+                  : Colors.grey.shade200),
           width: isVerified ? 1.8 : 1.0,
         ),
       ),
@@ -47,17 +48,17 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Row
+            // ── Header Row ───────────────────────────────────────────────
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: isVerified
-                        ? Colors.green.withOpacity(0.12)
+                        ? Colors.green.withValues(alpha: 0.12)
                         : (isDetected
-                            ? cs.primary.withOpacity(0.12)
-                            : Colors.grey.withOpacity(0.12)),
+                            ? cs.primary.withValues(alpha: 0.1)
+                            : Colors.grey.withValues(alpha: 0.1)),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -79,11 +80,14 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                     children: [
                       Row(
                         children: [
-                          const Text(
-                            'Layer 1: BLE Proximity Challenge',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                          const Flexible(
+                            child: Text(
+                              'Layer 1: BLE Proximity',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -92,8 +96,8 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: isDetected
-                                  ? Colors.blue.withOpacity(0.12)
-                                  : Colors.blueGrey.withOpacity(0.1),
+                                  ? Colors.blue.withValues(alpha: 0.12)
+                                  : Colors.blueGrey.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -113,18 +117,17 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                       ),
                       Text(
                         isVerified
-                            ? 'Physical presence verified'
+                            ? 'Physical presence verified ✓'
                             : (isDetected
-                                ? 'Beacon detected! Listen to faculty announcement'
+                                ? 'Beacon detected! Listen to faculty'
                                 : 'Scanning for faculty BLE beacon...'),
                         style: TextStyle(
                           fontSize: 12,
                           color: isVerified
                               ? Colors.green.shade700
-                              : (isDetected
-                                  ? cs.primary
-                                  : Colors.grey.shade600),
+                              : (isDetected ? cs.primary : Colors.grey.shade600),
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -145,15 +148,14 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                   ),
               ],
             ),
-
             const SizedBox(height: 14),
 
-            // 24-Byte BLE Beacon Observation Card
+            // ── Beacon observation banner ────────────────────────────────
             if (controller.detectedBeacon != null)
               _buildBeaconObservationBanner(
                   context, cs, controller.detectedBeacon!),
 
-            // State 1: Verified Successfully
+            // ── State 1: Verified ────────────────────────────────────────
             if (isVerified) ...[
               Container(
                 width: double.infinity,
@@ -166,7 +168,7 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                 child: Row(
                   children: [
                     const Icon(Icons.check_circle_rounded,
-                        color: Colors.green, size: 28),
+                        color: Colors.green, size: 30),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -181,10 +183,10 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                             ),
                           ),
                           Text(
-                            'Presence confirmed. Radio RSSI: ${controller.activeBeaconRssi ?? -60} dBm',
+                            'Presence confirmed  •  RSSI: ${controller.activeBeaconRssi ?? -60} dBm',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.green.shade800,
+                              color: Colors.green.shade700,
                             ),
                           ),
                         ],
@@ -199,25 +201,26 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
               ),
             ]
 
-            // State 2: Beacon Detected / Code Available -> 5 Interactive Choices
+            // ── State 2: Code options ────────────────────────────────────
             else if (isDetected && controller.challengeOptions.isNotEmpty) ...[
               Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.06),
+                  color: cs.primary.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Tap the 2-digit number announced aloud:',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: cs.primary,
+                    Flexible(
+                      child: Text(
+                        'Tap the 2-digit number announced aloud:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: cs.primary,
+                        ),
                       ),
                     ),
                     if (controller.activeBeaconRssi != null)
@@ -232,10 +235,9 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                   ],
                 ),
               ),
+              const SizedBox(height: 14),
 
-              const SizedBox(height: 12),
-
-              // 5 Number Options
+              // 5 Number Options — larger and more tappable
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -244,21 +246,21 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                   final codeStr = code.toString().padLeft(2, '0');
                   return InkWell(
                     onTap: () => controller.verifyNumberChallenge(code),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     child: Container(
-                      width: 58,
-                      height: 52,
+                      width: 66,
+                      height: 60,
                       decoration: BoxDecoration(
                         color: cs.surface,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: cs.primary.withOpacity(0.5),
+                          color: cs.primary.withValues(alpha: 0.45),
                           width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 4,
+                            color: cs.primary.withValues(alpha: 0.06),
+                            blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
                         ],
@@ -267,7 +269,7 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                       child: Text(
                         codeStr,
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: cs.primary,
                         ),
@@ -279,27 +281,11 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
 
               if (controller.challengeError != null) ...[
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: Colors.red, size: 16),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        controller.challengeError!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                _buildErrorRow(controller.challengeError!),
               ],
             ]
 
-            // State 3: Searching for Beacon / Manual Fallback
+            // ── State 3: Searching / manual fallback ─────────────────────
             else ...[
               Container(
                 width: double.infinity,
@@ -314,14 +300,14 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                     Row(
                       children: [
                         const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'Searching for active classroom beacon in BLE range...',
+                            'Searching for classroom beacon in BLE range...',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade700,
@@ -350,22 +336,17 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
                               controller: _manualInputController,
                               keyboardType: TextInputType.number,
                               maxLength: 2,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 hintText: 'Enter 2-digit code',
                                 counterText: '',
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
                             onPressed: () {
-                              controller.verifyManualCode(
-                                  _manualInputController.text);
+                              controller
+                                  .verifyManualCode(_manualInputController.text);
                             },
                             child: const Text('Verify'),
                           ),
@@ -378,28 +359,31 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
 
               if (controller.challengeError != null) ...[
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: Colors.red, size: 16),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        controller.challengeError!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                _buildErrorRow(controller.challengeError!),
               ],
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildErrorRow(String error) {
+    return Row(
+      children: [
+        const Icon(Icons.error_outline_rounded, color: Colors.red, size: 16),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            error,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -414,13 +398,28 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: cs.primary.withValues(alpha: 0.05),
+        color: cs.primary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: beacon.isCrcValid
-              ? cs.primary.withValues(alpha: 0.3)
-              : Colors.red.shade300,
-          width: 1.0,
+        border: Border(
+          left: BorderSide(
+            color: beacon.isCrcValid ? cs.primary : Colors.red.shade400,
+            width: 3,
+          ),
+          right: BorderSide(
+            color: beacon.isCrcValid
+                ? cs.primary.withValues(alpha: 0.15)
+                : Colors.red.withValues(alpha: 0.15),
+          ),
+          top: BorderSide(
+            color: beacon.isCrcValid
+                ? cs.primary.withValues(alpha: 0.15)
+                : Colors.red.withValues(alpha: 0.15),
+          ),
+          bottom: BorderSide(
+            color: beacon.isCrcValid
+                ? cs.primary.withValues(alpha: 0.15)
+                : Colors.red.withValues(alpha: 0.15),
+          ),
         ),
       ),
       child: Column(
@@ -431,12 +430,15 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.sensors_rounded, size: 16, color: cs.primary),
+                  Icon(Icons.sensors_rounded, size: 15, color: cs.primary),
                   const SizedBox(width: 6),
-                  Text(
-                    '${beacon.courseCode} • Room ${beacon.roomNumber}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 13),
+                  Flexible(
+                    child: Text(
+                      '${beacon.courseCode}  •  Room ${beacon.roomNumber}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -462,23 +464,26 @@ class _NumberChallengeCardState extends State<NumberChallengeCard> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Faculty: Prof ${beacon.facultyInitials} • ⏱️ ${beacon.remainingMinutes}m left',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              Flexible(
+                child: Text(
+                  'Prof ${beacon.facultyInitials}  •  ⏱️ ${beacon.remainingMinutes} min left',
+                  style:
+                      TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               Text(
                 dist >= 0
-                    ? '~${dist.toStringAsFixed(1)}m / ${beacon.allowedRadius}m max'
-                    : '${beacon.allowedRadius}m max',
+                    ? '~${dist.toStringAsFixed(1)} m / ${beacon.allowedRadius} m'
+                    : '${beacon.allowedRadius} m max',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color:
-                      inRange ? Colors.green.shade700 : Colors.red.shade700,
+                  color: inRange ? Colors.green.shade700 : Colors.red.shade700,
                 ),
               ),
             ],

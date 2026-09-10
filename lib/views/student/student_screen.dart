@@ -56,8 +56,8 @@ class _StudentScreenState extends State<StudentScreen> {
         _showResultDialog(
           title: isOffline ? 'Attendance Saved Offline! 📱' : 'Attendance Marked! ✅',
           message: isOffline
-              ? 'You are verified inside Bluetooth range.\n\n$bleInfo• Bluetooth Range: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n\nYour record is safely stored in your phone\'s offline queue and will automatically sync to the faculty dashboard when connected to the internet.'
-              : 'You are verified inside the classroom.\n\n$bleInfo• Bluetooth Range: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓\n\nYour attendance is registered live on the teacher\'s panel.',
+              ? 'You are verified inside Bluetooth range.\n\n$bleInfo• Distance: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n\nYour record is safely stored offline and will auto-sync when internet returns.'
+              : 'You are verified inside the classroom.\n\n$bleInfo• Distance: ${record.distanceMeters.toStringAsFixed(1)} m\n• Direction: ${record.isInFrontSector ? 'Front sector ✓' : 'Full 360°'}\n• Hardware GPS: Clean ✓',
           isSuccess: true,
         );
       } else if (record.status == AttendanceStatus.flaggedMockLocation) {
@@ -78,7 +78,7 @@ class _StudentScreenState extends State<StudentScreen> {
         _showResultDialog(
           title: 'Outside Bluetooth Range ❌',
           message:
-              'You are ${record.distanceMeters.toStringAsFixed(1)} m away from the faculty.\nMaximum allowed Bluetooth range is ${_controller.activeSession?.radiusMeters.toInt()} m.',
+              'You are ${record.distanceMeters.toStringAsFixed(1)} m away.\nMaximum allowed is ${_controller.activeSession?.radiusMeters.toInt()} m.',
           isSuccess: false,
         );
       }
@@ -139,37 +139,20 @@ class _StudentScreenState extends State<StudentScreen> {
                 MaterialPageRoute(builder: (_) => const RoleSelectorScreen()),
               ),
             ),
-            title: Column(
-              children: [
-                const Text(
-                  'Student Portal',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+            title: const Text('Student Portal'),
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: _StatusPill(
+                  isActive: isSessionActive,
+                  activeLabel: 'LIVE',
+                  idleLabel: 'Waiting',
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Firebase Live',
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            centerTitle: true,
-            elevation: 0,
+              ),
+            ],
           ),
           body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -177,12 +160,12 @@ class _StudentScreenState extends State<StudentScreen> {
                 const SizedBox(height: 10),
 
                 const SyncStatusCard(),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
                 _buildIdentityCard(cs),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
-                // Layer 1: Number Challenge Card (Always visible when session is active or beacon is detected)
+                // Layer 1: Number Challenge
                 if (isSessionActive ||
                     _controller.isBeaconActive ||
                     _controller.simulateBeaconFound) ...[
@@ -201,18 +184,18 @@ class _StudentScreenState extends State<StudentScreen> {
                     controller: _controller,
                     session: session,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                 ],
 
-                _buildGpsCoordinatesBox(cs),
-                const SizedBox(height: 14),
+                _buildGpsBox(cs),
+                const SizedBox(height: 12),
 
                 if (_controller.hasSubmitted) ...[
                   _buildSubmittedNotice(),
                   const SizedBox(height: 12),
                 ],
 
-                // Mark Attendance Action Button
+                // ── Mark Attendance Button ──────────────────────────
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -233,7 +216,7 @@ class _StudentScreenState extends State<StudentScreen> {
                             _controller.isReadyToMark
                                 ? Icons.how_to_reg_rounded
                                 : Icons.touch_app_rounded,
-                            size: 26,
+                            size: 24,
                           ),
                     label: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -251,30 +234,25 @@ class _StudentScreenState extends State<StudentScreen> {
                           Text(
                             _controller.isReadyToMark
                                 ? 'All checks passed — tap to mark'
-                                : 'Tap to submit (will be reviewed by faculty)',
+                                : 'Tap to submit (faculty will review)',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Colors.white.withOpacity(0.85),
+                              color: Colors.white.withValues(alpha: 0.85),
                             ),
                           ),
                       ],
                     ),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
                       backgroundColor: _controller.isReadyToMark
                           ? Colors.green.shade700
                           : cs.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 DemoToolsCard(controller: _controller),
-                const SizedBox(height: 32),
               ],
             ),
           ),
@@ -284,73 +262,37 @@ class _StudentScreenState extends State<StudentScreen> {
   }
 
   Widget _buildSessionBanner(AttendanceSession? s, ColorScheme cs) {
-    if (s == null) {
-      if (_controller.isBeaconActive) {
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.indigo.shade700, Colors.blue.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.bluetooth_connected_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Classroom Beacon Detected (Offline)',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Direct BLE radio active. Tap the announced code to mark attendance locally.',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ]),
-          ),
-        );
-      }
-
+    // ── No session: BLE beacon offline ──────────────────────────────────
+    if (s == null && _controller.isBeaconActive) {
       return Container(
-        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: cs.primary.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: cs.primary.withOpacity(0.15)),
+          gradient: LinearGradient(
+            colors: [Colors.indigo.shade700, Colors.blue.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.indigo.withValues(alpha: 0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
+        padding: const EdgeInsets.all(18),
         child: Row(children: [
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: CircularProgressIndicator(strokeWidth: 3, color: cs.primary),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.bluetooth_connected_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 14),
           const Expanded(
@@ -358,13 +300,17 @@ class _StudentScreenState extends State<StudentScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Waiting for Faculty…',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  'Classroom Beacon Detected',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
-                SizedBox(height: 3),
+                SizedBox(height: 2),
                 Text(
-                  'Searching for teacher\'s BLE radio or cloud session...',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  'Direct BLE radio active. Tap the announced code to mark offline.',
+                  style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
                 ),
               ],
             ),
@@ -373,6 +319,50 @@ class _StudentScreenState extends State<StudentScreen> {
       );
     }
 
+    // ── No session: waiting ──────────────────────────────────────────────
+    if (s == null) {
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: cs.primaryContainer.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: cs.primary.withValues(alpha: 0.12)),
+        ),
+        child: Row(children: [
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(strokeWidth: 3, color: cs.primary),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Waiting for Faculty…',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: cs.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Searching for teacher\'s BLE beacon or cloud session...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: cs.onPrimaryContainer.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      );
+    }
+
+    // ── Active / ended session ───────────────────────────────────────────
     final isRunning = s.isActive && !s.isExpired;
 
     return Container(
@@ -384,106 +374,108 @@ class _StudentScreenState extends State<StudentScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: (isRunning ? Colors.green : Colors.grey).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                isRunning ? Icons.wifi_rounded : Icons.wifi_off_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+      padding: const EdgeInsets.all(18),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    'by ${s.facultyName}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+            child: Icon(
+              isRunning ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+              color: Colors.white,
+              size: 20,
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: isRunning ? Colors.white : Colors.white.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isRunning ? 'LIVE' : 'ENDED',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                  color: isRunning ? Colors.green.shade700 : Colors.white,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
+                Text(
+                  'by ${s.facultyName}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontSize: 12,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isRunning
+                  ? Colors.white
+                  : Colors.white.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              isRunning ? 'LIVE' : 'ENDED',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+                color: isRunning ? Colors.green.shade700 : Colors.white,
               ),
             ),
-          ]),
-          const SizedBox(height: 14),
-          Row(children: [
-            _buildSessionStat(
-              Icons.radar_rounded,
-              '${s.radiusMeters.toInt()} m',
-              'Radius',
-            ),
-            const SizedBox(width: 10),
-            _buildSessionStat(
-              s.directionalModeEnabled
-                  ? Icons.navigation_rounded
-                  : Icons.circle_outlined,
-              s.directionalModeEnabled
-                  ? '${s.frontSectorDegrees.toInt()}° ${GeoUtils.headingToLabel(s.facultyHeading)}'
-                  : '360°',
-              'Zone',
-            ),
-            const SizedBox(width: 10),
-            if (isRunning)
-              _buildSessionStat(
-                Icons.timer_rounded,
-                GeoUtils.formatDuration(s.remainingTime),
-                'Left',
-              )
-            else
-              _buildSessionStat(
-                Icons.lock_clock_rounded,
-                'Ended',
-                'Status',
-              ),
-          ]),
+          ),
         ]),
-      ),
+        const SizedBox(height: 14),
+        Row(children: [
+          _buildSessionStat(
+            Icons.radar_rounded,
+            '${s.radiusMeters.toInt()} m',
+            'BLE Range',
+          ),
+          const SizedBox(width: 8),
+          _buildSessionStat(
+            s.directionalModeEnabled
+                ? Icons.navigation_rounded
+                : Icons.circle_outlined,
+            s.directionalModeEnabled
+                ? '${s.frontSectorDegrees.toInt()}° ${GeoUtils.headingToLabel(s.facultyHeading)}'
+                : '360°',
+            'Zone',
+          ),
+          const SizedBox(width: 8),
+          _buildSessionStat(
+            isRunning ? Icons.timer_rounded : Icons.lock_clock_rounded,
+            isRunning ? GeoUtils.formatDuration(s.remainingTime) : 'Ended',
+            isRunning ? 'Left' : 'Status',
+          ),
+        ]),
+      ]),
     );
   }
 
   Widget _buildSessionStat(IconData icon, String value, String label) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.18),
+          color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(children: [
@@ -494,12 +486,16 @@ class _StudentScreenState extends State<StudentScreen> {
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 12,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             label,
-            style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 10,
+            ),
           ),
         ]),
       ),
@@ -508,43 +504,35 @@ class _StudentScreenState extends State<StudentScreen> {
 
   Widget _buildIdentityCard(ColorScheme cs) {
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.person_pin_rounded, size: 20, color: Colors.blue),
-            SizedBox(width: 8),
-            Text(
+          Row(children: [
+            Icon(Icons.person_pin_rounded, size: 18, color: cs.primary),
+            const SizedBox(width: 8),
+            const Text(
               'Student Details',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
           ]),
           const SizedBox(height: 14),
           TextField(
             controller: _nameController,
             textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Full Name *',
               hintText: 'e.g. Rahul Sharma',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              prefixIcon: const Icon(Icons.person_rounded),
-              filled: true,
+              prefixIcon: Icon(Icons.person_rounded),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           TextField(
             controller: _rollController,
             textCapitalization: TextCapitalization.characters,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Roll Number / Student ID *',
               hintText: 'e.g. 22BCS045',
-              border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              prefixIcon: const Icon(Icons.badge_rounded),
-              filled: true,
+              prefixIcon: Icon(Icons.badge_rounded),
             ),
           ),
         ]),
@@ -552,21 +540,25 @@ class _StudentScreenState extends State<StudentScreen> {
     );
   }
 
-  Widget _buildGpsCoordinatesBox(ColorScheme cs) {
+  Widget _buildGpsBox(ColorScheme cs) {
     if (_controller.currentPosition != null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: cs.primary.withOpacity(0.05),
+          color: cs.primaryContainer.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
         ),
         child: Row(children: [
           Icon(Icons.satellite_alt_rounded, size: 14, color: cs.primary),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              '${_controller.currentPosition!.latitude.toStringAsFixed(6)}, ${_controller.currentPosition!.longitude.toStringAsFixed(6)}  ±${_controller.currentPosition!.accuracy.toStringAsFixed(1)} m accuracy',
+              '${_controller.currentPosition!.latitude.toStringAsFixed(6)}, '
+              '${_controller.currentPosition!.longitude.toStringAsFixed(6)}  '
+              '±${_controller.currentPosition!.accuracy.toStringAsFixed(1)} m',
               style: TextStyle(fontSize: 11, color: cs.primary),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ]),
@@ -575,7 +567,7 @@ class _StudentScreenState extends State<StudentScreen> {
       return Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.08),
+          color: Colors.grey.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(10),
         ),
         child: const Row(children: [
@@ -585,9 +577,11 @@ class _StudentScreenState extends State<StudentScreen> {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
           SizedBox(width: 8),
-          Text(
-            'Acquiring satellite GPS… please wait',
-            style: TextStyle(fontSize: 12),
+          Expanded(
+            child: Text(
+              'Acquiring satellite GPS… please wait',
+              style: TextStyle(fontSize: 12),
+            ),
           ),
         ]),
       );
@@ -595,7 +589,7 @@ class _StudentScreenState extends State<StudentScreen> {
       return Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.red.withOpacity(0.07),
+          color: Colors.red.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(children: [
@@ -617,7 +611,7 @@ class _StudentScreenState extends State<StudentScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.07),
+        color: Colors.green.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.green.shade400, width: 1.5),
       ),
@@ -628,11 +622,8 @@ class _StudentScreenState extends State<StudentScreen> {
             color: Colors.green.shade100,
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            Icons.cloud_done_rounded,
-            color: Colors.green.shade700,
-            size: 24,
-          ),
+          child: Icon(Icons.cloud_done_rounded,
+              color: Colors.green.shade700, size: 22),
         ),
         const SizedBox(width: 12),
         const Expanded(
@@ -649,13 +640,58 @@ class _StudentScreenState extends State<StudentScreen> {
               ),
               SizedBox(height: 2),
               Text(
-                'Open the Faculty Panel on the other phone to see your record appear live.',
+                'Open the Faculty Panel on the other phone to see your record.',
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
         ),
       ]),
+    );
+  }
+}
+
+/// Compact status pill for AppBar actions
+class _StatusPill extends StatelessWidget {
+  final bool isActive;
+  final String activeLabel;
+  final String idleLabel;
+
+  const _StatusPill({
+    required this.isActive,
+    required this.activeLabel,
+    required this.idleLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? Colors.green : Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            isActive ? activeLabel : idleLabel,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
